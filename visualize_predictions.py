@@ -3,7 +3,7 @@ import cv2
 import os
 from tqdm import tqdm
 
-PREDICTIONS_FILE = "Sapines_II/predictions.json"
+PREDICTIONS_FILE = "NEXUS_Submission/predictions.json"
 IMG_DIR = "test_img/test/images"
 OUTPUT_DIR = "visualized_predictions"
 

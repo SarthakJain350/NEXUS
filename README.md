@@ -197,7 +197,7 @@ deepsight/
 │   └── yolo26n.pt              #    YOLOv26n weights (experimental)
 │
 ├── configs/
-│   └── knight_sight.yaml       # 📋 Dataset & training configuration
+│   └── nexus.yaml              # 📋 Dataset & training configuration
 │
 ├── scripts/
 │   ├── export_onnx.py          # 🔄 Export PyTorch → ONNX
@@ -208,7 +208,7 @@ deepsight/
 ├── notebooks/
 │   ├── train.ipynb             # 🏋️ Model training notebook
 │   ├── aug.ipynb               # 🖼️ Augmentation research notebook
-│   └── deepsightchallenge-dataset-checkout.ipynb  # 📂 Dataset exploration
+│   └── nexus-dataset-checkout.ipynb  # 📂 Dataset exploration
 │
 ├── src/                        # 🧩 Source modules
 │   ├── License_Plate_Recognition/
@@ -222,7 +222,7 @@ deepsight/
 ├── docs/
 │   ├── visualizations/
 │   │   └── training_metrics.png  # 📈 Training curves visualization
-│   └── KnightSight_EdgeVision_Challenge_FINAL.pdf  # 📄 Challenge documentation
+│   └── NEXUS_Challenge_FINAL.pdf  # 📄 Challenge documentation
 │
 ├── runs/detect/                # 📊 Training outputs, metrics, and weights
 ├── explain.md                  # 📖 Full technical report (loss functions, architecture, etc.)
@@ -387,7 +387,7 @@ Or train via CLI:
 ```bash
 yolo detect train \
   model=yolo11n.pt \
-  data=configs/knight_sight.yaml \
+  data=configs/nexus.yaml \
   epochs=20 \
   batch=32 \
   imgsz=480 \
@@ -429,7 +429,7 @@ Generate competition submission files:
 python create_submission.py
 ```
 
-This produces the `Sapines_II/` folder containing:
+This produces the `NEXUS_Submission/` folder containing:
 - `predictions.json` — Plate bounding boxes for each test image
 - `efficiency.json` — FLOPs, latency, and model size
 - `efficiency_per_image_ms.json` — Per-image inference latency

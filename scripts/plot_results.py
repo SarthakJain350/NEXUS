@@ -4,7 +4,8 @@ import seaborn as sns
 import os
 
 # Path to your results
-csv_path = r"E:\deepsight\runs\detect\KnightSight_Local\RTX4060_Uniform_v1\results.csv"
+local_csv = os.path.join("runs", "detect", "NEXUS_Local", "RTX4060_Uniform_v1", "results.csv")
+csv_path = local_csv if os.path.exists(local_csv) else r"E:\deepsight\runs\detect\KnightSight_Local\RTX4060_Uniform_v1\results.csv"
 output_dir = "docs/visualizations"
 os.makedirs(output_dir, exist_ok=True)
 

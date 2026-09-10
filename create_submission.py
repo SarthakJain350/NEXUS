@@ -12,7 +12,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"{'🔥 Using GPU: ' + torch.cuda.get_device_name(0) if DEVICE == 'cuda' else '⚠️  Running on CPU'}")
 
 # Configuration
-TEAM_NAME = "Sapines_II"
+TEAM_NAME = "NEXUS_Submission"
 IMG_DIR = "test_img/test/images"
 MODEL_PATH = "models/best.onnx"
 VMODEL_PATH = "models/yolo11n.pt"

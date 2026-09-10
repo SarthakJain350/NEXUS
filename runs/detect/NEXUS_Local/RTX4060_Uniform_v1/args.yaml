@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: yolo11n.pt
-data: knight_sight.yaml
+data: nexus.yaml
 epochs: 20
 time: null
 patience: 100
@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: '0'
 workers: 8
-project: KnightSight_Local
+project: NEXUS_Local
 name: RTX4060_Uniform_v1
 exist_ok: false
 pretrained: true
@@ -107,4 +107,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: E:\deepsight\runs\detect\KnightSight_Local\RTX4060_Uniform_v1
+save_dir: runs\detect\NEXUS_Local\RTX4060_Uniform_v1
