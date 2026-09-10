@@ -572,7 +572,7 @@ Contributions are welcome! Here's how to get started:
 ### Development Setup
 
 ```bash
-git clone https://github.com/Gyaanendra/deepsight-sapiens.git
+git clone https://github.com/SarthakJain350/NEXUS.git
 cd deepsight-sapiens
 pip install -r requirements.txt
 python -m pytest tests/       # run tests
