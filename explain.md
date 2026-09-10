@@ -1,6 +1,6 @@
-# KnightSight EdgeVision — Full Technical Report
+# NEXUS — Full Technical Report
 
-> **Project:** Automatic Number Plate Recognition (ANPR) for the KnightSight EdgeVision Challenge   
+> **Project:** Automatic Number Plate Recognition (ANPR) for the NEXUS Challenge   
 > **Hardware:** NVIDIA RTX 4060 (8 GB VRAM)  
 > **Framework:** Ultralytics YOLOv11 · PyTorch · Streamlit  
 

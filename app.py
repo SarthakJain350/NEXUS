@@ -305,7 +305,7 @@ vehicle_model = load_vehicle()
 fast_ocr      = load_fast_ocr()
 
 # ── Title ─────────────────────────────────────────────────────────────────────
-st.markdown("# 🚗 KnightSight EdgeVision ANPR")
+st.markdown("# 🚗 NEXUS ANPR")
 st.markdown("<p style='color:#4a6fa5;margin-top:-12px'>Automatic Number Plate Recognition · Vehicle → Plate → OCR pipeline</p>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -493,5 +493,5 @@ with vid_tab:
 st.markdown("""
 <div style='text-align:center;color:#2a4560;font-size:0.78rem;margin-top:32px;padding:16px;
 border-top:1px solid rgba(255,255,255,0.05)'>
-KnightSight EdgeVision ANPR · Ultralytics YOLO + Fast-Plate-OCR / GPT-4o-mini · Streamlit
+NEXUS ANPR · Ultralytics YOLO + Fast-Plate-OCR / GPT-4o-mini · Streamlit
 </div>""", unsafe_allow_html=True)

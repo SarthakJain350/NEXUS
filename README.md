@@ -1,5 +1,5 @@
 ---
-title: KnightSight EdgeVision ANPR
+title: NEXUS ANPR
 emoji: 🚗
 colorFrom: blue
 colorTo: green
@@ -12,7 +12,7 @@ license: mit
 
 <div align="center">
 
-# 🚗 KnightSight EdgeVision — ANPR Pipeline
+# 🚗 NEXUS — ANPR Pipeline
 
 **Automatic Number Plate Recognition · Edge-Optimized · Real-Time Inference**
 
@@ -21,7 +21,7 @@ license: mit
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org)
 [![ONNX](https://img.shields.io/badge/ONNX-Runtime-005CED?logo=onnx&logoColor=white)](https://onnxruntime.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Hugging Face](https://img.shields.io/badge/🤗_HuggingFace-Space-yellow)](https://huggingface.co/spaces/Gyaanendra/deepsight-sapiens)
+[![Hugging Face](https://img.shields.io/badge/🤗_HuggingFace-Space-yellow)](https://huggingface.co/spaces/Sarthak403/NEXUS)
 
 </div>
 
@@ -53,7 +53,7 @@ license: mit
 
 ## 🔍 Overview
 
-**KnightSight EdgeVision** is a high-accuracy, edge-optimized Automatic Number Plate Recognition (ANPR) system built for the **KnightSight EdgeVision Challenge**. It implements a two-stage detection pipeline — first detecting vehicles in a scene, then localizing license plates within each vehicle ROI, and finally performing OCR to extract the plate text.
+**NEXUS** is a high-accuracy, edge-optimized Automatic Number Plate Recognition (ANPR) system built for the **NEXUS Challenge**. It implements a two-stage detection pipeline — first detecting vehicles in a scene, then localizing license plates within each vehicle ROI, and finally performing OCR to extract the plate text.
 
 The system achieves **99.49% mAP@50** with a lightweight 2.6M parameter model, making it suitable for real-time edge deployment while maintaining near-perfect detection accuracy.
 
@@ -62,7 +62,7 @@ The system achieves **99.49% mAP@50** with a lightweight 2.6M parameter model, m
 ## 🌐 Live Demo
 
 > **Try it live on Hugging Face Spaces:**  
-> 🔗 [https://huggingface.co/spaces/Gyaanendra/deepsight-sapiens](https://huggingface.co/spaces/Gyaanendra/deepsight-sapiens)
+> 🔗 [https://huggingface.co/spaces/Sarthak403/NEXUS](https://huggingface.co/spaces/Sarthak403/NEXUS)
 
 Upload any vehicle image or video and get instant plate detection + OCR results.
 
@@ -250,16 +250,16 @@ deepsight/
 
 ```bash
 git lfs install
-git clone https://github.com/Gyaanendra/deepsight-sapiens.git
-cd deepsight-sapiens
+git clone https://github.com/SarthakJain350/NEXUS.git
+cd NEXUS
 ```
 
 ### 2. Create a Virtual Environment
 
 ```bash
 # Using conda
-conda create -n knightsight python=3.11 -y
-conda activate knightsight
+conda create -n NEXUS python=3.11 -y
+conda activate NEXUS
 
 # Or using venv
 python -m venv venv
@@ -453,10 +453,10 @@ pip install huggingface_hub[cli]
 huggingface-cli login
 
 # 3. Create the Space (only first time)
-huggingface-cli repo create deepsight-sapiens --type space --space-sdk streamlit
+huggingface-cli repo create NEXUS --type space --space-sdk streamlit
 
 # 4. Add the HF remote
-git remote add hf https://huggingface.co/spaces/Gyaanendra/deepsight-sapiens
+git remote add hf https://huggingface.co/spaces/Sarthak403/NEXUS
 
 # 5. Push to Hugging Face (triggers auto-deploy)
 git push hf main
@@ -473,7 +473,7 @@ git push hf main
 git lfs install
 
 # 2. Add the GitHub remote (first time only)
-git remote add origin https://github.com/Gyaanendra/deepsight-sapiens.git
+git remote add origin https://github.com/SarthakJain350/NEXUS.git
 
 # 3. Stage all changes
 git add .
