@@ -1,0 +1,14 @@
+[
+  {"camera_id": "CAM_01", "track_id": 17, "plate_number": "UP32AB1234",
+   "timestamp": "2026-09-10T10:32:12+05:30", "vehicle_type": "car",
+   "confidence": 0.94, "latitude": 28.60, "longitude": 77.20},
+  {"camera_id": "CAM_02", "track_id": 43, "plate_number": "up32 ab1234",
+   "timestamp": "2026-09-10T10:35:12+05:30", "vehicle_type": "car",
+   "confidence": 0.91, "latitude": 28.61, "longitude": 77.21},
+  {"camera_id": "CAM_03", "track_id": 8, "plate_number": null,
+   "timestamp": "2026-09-10T10:41:00+05:30", "vehicle_type": "motorcycle",
+   "confidence": 0.55, "latitude": 28.615, "longitude": 77.215},
+  {"camera_id": "CAM_UNKNOWN", "track_id": 1, "plate_number": "DL01XY9999",
+   "timestamp": "2026-09-10T10:42:00+05:30", "vehicle_type": "car",
+   "confidence": 0.88, "latitude": 0.0, "longitude": 0.0}
+]
