@@ -161,11 +161,3 @@ test_img/
 visualized_predictions/
 
 *.zip
-
-# R3 backend working notes (kept local per D11 — not committed)
-TODO.md
-NEXUS_R3_Backend_Database_Claude_Code_Plan_v2.md
-
-# Backend local artifacts (venv covered by .venv above; .env covered by .env above)
-backend/.env
-

@@ -1,0 +1,23 @@
+{
+  "owner": "R5 Harshit",
+  "branch": "feature/reid-analytics",
+  "scope": [
+    "reid/",
+    "analytics/",
+    "scripts/run_r5_demo.py",
+    "tests/test_r5.py",
+    "docs/R5_REID_ANALYTICS.md",
+    "README.md"
+  ],
+  "frozen_contract": [
+    "camera_id",
+    "track_id",
+    "plate_number",
+    "timestamp",
+    "vehicle_type",
+    "confidence",
+    "latitude",
+    "longitude"
+  ],
+  "note": "R5 does not modify backend/frontend/tracking/anpr modules."
+}
