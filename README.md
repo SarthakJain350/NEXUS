@@ -43,6 +43,7 @@ license: mit
 - [Creating Submissions](#-creating-submissions)
 - [Deployment](#-deployment)
 - [Configuration](#-configuration)
+- [R3 Backend & Database](#️-r3-backend--database)
 - [Technical Deep Dive](#-technical-deep-dive)
 - [Future Roadmap](#-future-roadmap)
 - [Contributing](#-contributing)
@@ -227,7 +228,17 @@ deepsight/
 ├── runs/detect/                # 📊 Training outputs, metrics, and weights
 ├── explain.md                  # 📖 Full technical report (loss functions, architecture, etc.)
 │
-├── requirements.txt            # 📦 Python dependencies
+├── backend/                    # 🌐 R3 Backend & Database (FastAPI + PostgreSQL)
+│   ├── app/                    #    api/ (routers, error envelope), schemas/, models/,
+│   │                           #    services/, repositories/, database/, config, main
+│   ├── alembic/                #    Database migrations
+│   ├── tests/                  #    123 tests (schemas, DB, services, API)
+│   ├── fixtures/               #    Edge-case fixture data
+│   ├── docker-compose.yml      #    Postgres 16 + healthcheck
+│   ├── requirements.txt        #    Backend deps (separate from root CV deps)
+│   └── .env.example            #    DATABASE_URL, ALLOWED_ORIGINS template
+│
+├── requirements.txt            # 📦 Python dependencies (CV/Streamlit app only)
 ├── packages.txt                # 📦 System-level apt packages (for HF Spaces)
 ├── .env                        # 🔐 API keys (not committed)
 ├── .gitignore                  # 🚫 Git ignore rules
@@ -525,6 +536,53 @@ The vehicle detector filters for COCO classes `[2, 3, 5, 7]`:
 
 ---
 
+## 🌐 R3 Backend & Database
+
+The `backend/` directory contains the NEXUS R3 layer — a **FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic** service that stores vehicle observations from the camera pipelines (R1/R2) and serves them to the dashboard (R4), analytics (R5), and fusion (R6) components. It is fully independent of the CV/Streamlit app and has its own dependencies and database.
+
+### What it provides
+
+| Area | Details |
+|------|---------|
+| **Observation ingest** | `POST /api/v1/observations` (+ `/batch`) with idempotency via optional `ingest_id` — replays return the existing record (200), never an error; unknown cameras are auto-created as `unregistered` |
+| **Queries** | Paginated observations with filters (camera, plate, type, time window), vehicles, camera status, and timestamp-sorted vehicle journeys |
+| **R6 fusion hook** | `PATCH /api/v1/observations/{id}/vehicle` links observations to global vehicle identities |
+| **Validation** | Plate normalization (uppercase, separators stripped), IST→UTC timestamp policy, confidence/coordinate range checks — all at the Pydantic boundary |
+
+Interactive docs (Swagger UI) at `http://localhost:8000/docs` once running.
+
+### Quick start
+
+```bash
+cd backend
+
+# 1. Database (Docker)
+docker compose up -d          # Postgres 16 with healthcheck
+
+# 2. Environment
+copy .env.example .env        # Windows (Linux: cp); edit DATABASE_URL credentials if needed
+
+# 3. Dependencies (own venv — never mixed with the root CV requirements)
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt    # Linux: .venv/bin/pip
+
+# 4. Migrations
+.venv\Scripts\alembic upgrade head               # Linux: .venv/bin/alembic
+
+# 5. Run
+.venv\Scripts\uvicorn app.main:app --reload      # Linux: .venv/bin/uvicorn
+```
+
+### Tests
+
+```bash
+.venv\Scripts\python -m pytest -q    # 123 tests: schemas, DB, services, API
+```
+
+The test suite creates and drops an isolated `nexus_test` database automatically — your `nexus` database is never touched. Postgres must be running (`docker compose up -d`).
+
+---
+
 ## 🔬 Technical Deep Dive
 
 For a comprehensive technical report covering:
@@ -552,7 +610,7 @@ For a comprehensive technical report covering:
 | GPT-4o OCR fallback | ✅ Done | Via OpenRouter API |
 | Live webcam stream | 🔲 Planned | `cv2.VideoCapture(0)` integration |
 | Plate tracking (ByteTrack) | 🔲 Planned | Cross-frame plate tracking |
-| Database logging | 🔲 Planned | SQLite with timestamps |
+| R3 Backend & Database | ✅ Done | FastAPI + PostgreSQL (see `backend/`) — observations, vehicles, journeys |
 | Alert system | 🔲 Planned | Blocklist/whitelist plate lookup |
 | TensorRT FP16 | 🔲 Planned | 2–3× faster on NVIDIA Jetson |
 | OpenVINO INT8 | 🔲 Planned | Optimized for Intel edge CPUs |

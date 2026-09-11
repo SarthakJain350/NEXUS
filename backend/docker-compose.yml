@@ -1,0 +1,23 @@
+# NEXUS R3 — local PostgreSQL only.
+# The CV/Streamlit pipeline is NOT containerized (Plan §10).
+# Usage: docker compose up -d   (wait for healthy), then: alembic upgrade head
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nexus
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus
+    ports:
+      - "5432:5432"
+    volumes:
+      - nexus_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nexus_pgdata:
