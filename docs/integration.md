@@ -47,11 +47,13 @@ duplicating rows.
 
 ## Consumer readiness (Plan §15 / TODO Phase 8)
 
-| Module | Status | Notes |
+*Verified 2026-09-12 by direct inspection of the consumers' committed code.*
+
+| Module | Status | Verification |
 |---|---|---|
-| R1/R2 | ⏳ waiting | Final payload format not delivered yet (D9, expected ~2026-09-11). Until then: fixtures/mock JSON. |
-| R4 | 🟡 moving | React GIS dashboard merged (`frontend/`); expected response shapes not yet confirmed against the API (D8 — R4 moves first, then we verify). |
-| R5 | 🟡 moving | Re-ID analytics + alerts branch started (`feature/reid-analytics`). Needs `GET /observations` windows + camera liveness — both available. |
+| R1/R2 | ⏳ waiting | Final payload format not delivered yet (D9, expected ~2026-09-11). Proxy evidence: R4's ingest simulator posts a contract-exact payload (see below). Until then: fixtures/mock JSON. |
+| R4 | ✅ **verified compatible** | Inspected `frontend/src/services/api.js` + components on `origin/main`. Every call maps 1:1 onto the API: `GET /cameras?status=&page_size=100`, `PATCH /cameras/{id}`, `GET /vehicles?plate_number=&vehicle_type=`, `GET /vehicles/{id}/journey?page_size=200`, `GET /observations?camera_id=&plate_number=&vehicle_type=`, `POST /observations`, `GET /health/ready` (reads `data.database`). Page envelope unwrapped via `data.items` correctly; journey/observation field names match exactly. Their ingest simulator sends a textbook payload — including `ingest_id` (`ui-sim-{timestamp}`) and camera-row lat/lon fallback, which is precisely the D13 pattern. Vite dev proxy `/api → localhost:8000` and our CORS default (`localhost:3000`) line up out of the box. One cosmetic delta: mock cameras carry `observation_count`, but no component consumes it — no backend change needed. |
+| R5 | ✅ **verified compatible** (code-level) | Inspected `feature/reid-analytics` (`analytics/traffic_analyzer.py`, `alerts.py`). Analytics consume plain observation dicts with defensive `.get()` — no coupling to API internals; our `GET /observations` rows work as-is. Note for later: their `unique_global_vehicles` metric reads `global_vehicle_id` off observation rows, which our API doesn't expose yet (it's on the vehicle, not the observation). It degrades gracefully to row counts today; revisit when R6 fusion lands (would mean enriching the observation read with the vehicle's global id — small, backward-compatible addition). |
 | R6 | ⏳ waiting | Real fusion output not delivered; `PATCH /observations/{id}/vehicle` runs the provisional `{global_vehicle_id}` body (D6). |
 
 ## Stress-test results (Plan §14.3 / TODO 6.2)
