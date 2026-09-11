@@ -154,6 +154,7 @@ cython_debug/
 .vscode/
 
 # Datasets
+data/
 KnightSight_Uniform_Dataset/
 
 # Testing images
