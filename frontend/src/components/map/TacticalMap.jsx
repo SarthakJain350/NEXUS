@@ -1,7 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Camera, Navigation, AlertTriangle, Eye, Layers, ShieldCheck, Car } from 'lucide-react';
+
+// Re-measure the map whenever its container is laid out or resized.
+// Leaflet only listens for WINDOW resizes; on tab switch the map mounts
+// before the grid layout is computed, caches a zero-width size, and then
+// flyTo frames the wrong area even though getCenter() reports the target.
+function ContainerSizeObserver() {
+  const map = useMap();
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      // pan:false is essential: a layout-driven re-measure must never move
+      // the view. With a stale cached size (e.g. 0-width at mount) the
+      // default pan:true shifts the map by half the size difference,
+      // aborting and overwriting any in-flight flyTo.
+      map.invalidateSize({ animate: false, pan: false });
+    });
+    observer.observe(map.getContainer());
+    map.invalidateSize({ animate: false, pan: false });
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
 
 // Controller component to smoothly pan/zoom when target selection changes
 function MapController({ targetCoords, zoom }) {
@@ -98,10 +119,20 @@ export default function TacticalMap({
     });
   };
 
-  // Polyline coordinates for active vehicle journey
-  const polylinePositions = (journeyPoints || [])
-    .filter(p => p.latitude && p.longitude)
-    .map(p => [p.latitude, p.longitude]);
+  // Polyline coordinates for active vehicle journey. Memoized: rebuilding
+  // these arrays every render would re-trigger the MapController flyTo
+  // effect through the fallback target below (one focus per selection).
+  const polylinePositions = useMemo(
+    () => (journeyPoints || [])
+      .filter(p => p.latitude && p.longitude)
+      .map(p => [p.latitude, p.longitude]),
+    [journeyPoints]
+  );
+  // Stable fallback focus target when no explicit focusCoords is set.
+  const fallbackTarget = useMemo(
+    () => (polylinePositions.length > 0 ? polylinePositions[0] : null),
+    [polylinePositions]
+  );
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
@@ -272,9 +303,12 @@ export default function TacticalMap({
         style={{ width: '100%', height: '100%' }}
       >
         <MapController
-          targetCoords={focusCoords || (polylinePositions.length > 0 ? polylinePositions[0] : null)}
+          targetCoords={focusCoords || fallbackTarget}
           zoom={focusCoords ? 13 : null}
         />
+
+        {/* Re-sync Leaflet's cached size with the real container size */}
+        <ContainerSizeObserver />
 
         {/* CartoDB Dark Matter Tiles */}
         <TileLayer
