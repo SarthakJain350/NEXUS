@@ -578,3 +578,15 @@ pip install -r requirements.txt
 python -m pytest tests/       # run tests
 streamlit run app.py          # launch dashboard
 ```
+
+## R5 — Re-ID + Analytics + Alerts
+
+R5 is implemented in `reid/` and `analytics/`.
+
+- Visual vehicle appearance Re-ID and similarity scoring
+- Global-ID candidate matching for cross-camera integration
+- Traffic flow analytics
+- Low-confidence, repetition and congestion alerts
+- Unit tests and an offline demo
+
+See `docs/R5_REID_ANALYTICS.md`.
