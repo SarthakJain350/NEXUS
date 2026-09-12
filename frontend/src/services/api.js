@@ -126,12 +126,15 @@ class NexusApiClient {
       const res = await fetch(`${BASE_URL}/vehicles/${vehicleId}/journey?page_size=200`, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {
         const data = await res.json();
-        if (data.items && data.items.length > 0) return data.items;
+        return data.items || [];
       }
     } catch (e) {
-      console.warn(`API getVehicleJourney for ${vehicleId} failed, falling back to mock journey`, e);
+      console.warn(`API getVehicleJourney for ${vehicleId} failed`, e);
     }
-    return this.localJourneys[vehicleId] || [];
+    // Live mode never substitutes mock journeys: MOCK_JOURNEYS is keyed by
+    // mock ids that collide with real backend vehicle ids, which would plot
+    // a different vehicle's trajectory. Simulated mode is handled above.
+    return [];
   }
 
   // --- Observations ---
@@ -144,7 +147,8 @@ class NexusApiClient {
       if (filters.camera_id) params.append('camera_id', filters.camera_id);
       if (filters.plate_number) params.append('plate_number', filters.plate_number);
       if (filters.vehicle_type) params.append('vehicle_type', filters.vehicle_type);
-      params.append('page_size', '50');
+      // Max clamp per backend §6.8 — keeps KPIs, client analytics and alerts on the full dataset
+      params.append('page_size', '200');
 
       const res = await fetch(`${BASE_URL}/observations?${params.toString()}`, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {

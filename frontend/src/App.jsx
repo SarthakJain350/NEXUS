@@ -118,9 +118,10 @@ export default function App() {
     try {
       const journey = await api.getVehicleJourney(vehicle.id);
       setJourneyPoints(journey || []);
-      if (journey && journey.length > 0) {
-        setFocusCoords([journey[0].latitude, journey[0].longitude]);
-      }
+      // Journey is timestamp-ascending (backend §6.5): focus the vehicle's
+      // LATEST waypoint that carries coordinates (lat/lon nullable per C7).
+      const latest = [...(journey || [])].reverse().find(p => p.latitude && p.longitude);
+      setFocusCoords(latest ? [latest.latitude, latest.longitude] : null);
     } catch (e) {
       console.error('Failed to fetch vehicle journey', e);
     }
