@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Edit3, Camera, Radio, ExternalLink, MapPin, Clock, Video } from 'lucide-react';
+import { X, Edit3, Camera, Radio, ExternalLink, MapPin, Clock, Video, ShieldCheck } from 'lucide-react';
 
 export default function CameraDetailDrawer({
   camera,
@@ -11,7 +11,7 @@ export default function CameraDetailDrawer({
   if (!camera) return null;
 
   // Filter observations recorded at this camera
-  const cameraObs = observations.filter(o => o.camera_id === camera.camera_id).slice(0, 5);
+  const cameraObs = observations.filter(o => o.camera_id === camera.camera_id).slice(0, 6);
 
   return (
     <div
@@ -21,16 +21,16 @@ export default function CameraDetailDrawer({
         top: 12,
         right: 14,
         bottom: 14,
-        width: '340px',
+        width: '350px',
         zIndex: 1001,
         padding: '16px',
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
         overflowY: 'auto',
-        background: 'rgba(11, 17, 30, 0.92)',
+        background: 'rgba(11, 17, 30, 0.95)',
         border: '1px solid var(--border-medium)',
-        boxShadow: '-10px 0 30px rgba(0,0,0,0.8)'
+        boxShadow: '-10px 0 35px rgba(0,0,0,0.85)'
       }}
     >
       {/* Header */}
@@ -66,11 +66,11 @@ export default function CameraDetailDrawer({
           <span>Last Ping: {camera.last_seen_at ? new Date(camera.last_seen_at).toLocaleTimeString() : 'Unknown'}</span>
         </div>
         <div className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-          LAT {camera.latitude?.toFixed(4)}° / LON {camera.longitude?.toFixed(4)}°
+          GPS: {camera.latitude?.toFixed(4)}°N, {camera.longitude?.toFixed(4)}°E
         </div>
       </div>
 
-      {/* Simulated Surveillance Feed Canvas */}
+      {/* Tactical Simulated Surveillance Feed Canvas */}
       <div style={{
         position: 'relative',
         height: '140px',
@@ -91,15 +91,15 @@ export default function CameraDetailDrawer({
           pointerEvents: 'none'
         }} />
 
-        {/* Video stream watermark */}
+        {/* Video stream watermark: Explicit honest label */}
         <div style={{ position: 'absolute', top: 8, left: 10, fontSize: '0.62rem', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
-          REC ● LIVE FEED 1080P
+          ● TACTICAL SIMULATION / TELEMETRY
         </div>
         <div style={{ position: 'absolute', top: 8, right: 10, fontSize: '0.62rem', color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-          FPS: 29.8
+          SIMULATED
         </div>
         <div style={{ position: 'absolute', bottom: 8, left: 10, fontSize: '0.65rem', color: '#fff', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-          {camera.camera_id} // {camera.location || 'SECTOR-01'}
+          {camera.camera_id} // {camera.location || 'SECTOR'}
         </div>
 
         <Video size={36} color="rgba(0, 242, 254, 0.35)" />
@@ -119,7 +119,7 @@ export default function CameraDetailDrawer({
       {/* Recent Detections at this Camera */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '0' }}>
         <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
-          <span>Recent ANPR Detections</span>
+          <span>Recent ANPR Observations</span>
           <span style={{ color: 'var(--accent-cyan)' }}>{cameraObs.length} in buffer</span>
         </div>
 
@@ -165,7 +165,7 @@ export default function CameraDetailDrawer({
 
                 {obs.vehicle_id && (
                   <button
-                    onClick={() => onSelectVehicle({ id: obs.vehicle_id, plate_number_best_guess: obs.plate_number })}
+                    onClick={() => onSelectVehicle({ id: obs.vehicle_id, plate_number_best_guess: obs.plate_number, vehicle_type: obs.vehicle_type })}
                     className="btn btn-outline"
                     title="Track vehicle journey"
                     style={{ padding: '4px 6px' }}
