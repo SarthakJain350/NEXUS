@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from
 import L from 'leaflet';
 import { Camera, Navigation, AlertTriangle, Eye, Layers, ShieldCheck, Car } from 'lucide-react';
 import { getTileConfig } from '../../services/mapConfig';
+import { getLatestWaypoint } from '../../services/journeyFocus';
 
 // Re-measure the map whenever its container is laid out or resized.
 // Leaflet only listens for WINDOW resizes; on tab switch the map mounts
@@ -129,13 +130,13 @@ export default function TacticalMap({
       .map(p => [p.latitude, p.longitude]),
     [journeyPoints]
   );
-  // Stable fallback focus target when no explicit focusCoords is set.
-  // Journey points are chronological ASC, so the vehicle's most recent
-  // position is the LAST valid polyline vertex — never the first, which
-  // is the oldest waypoint and would center the map on the journey start.
+  // Stable fallback focus target when no explicit focusCoords is set:
+  // the journey's LAST valid waypoint (chronological ASC — never the
+  // first, which is the oldest and would center on the journey start).
+  // Same helper App.jsx uses for the explicit focus — one source of truth.
   const fallbackTarget = useMemo(
-    () => (polylinePositions.length > 0 ? polylinePositions[polylinePositions.length - 1] : null),
-    [polylinePositions]
+    () => getLatestWaypoint(journeyPoints),
+    [journeyPoints]
   );
 
   // Base-tile provider config (env-driven; resolved once — env is immutable

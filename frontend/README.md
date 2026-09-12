@@ -7,8 +7,11 @@ the backend is offline.
 
 - **Dev server:** http://localhost:3000 (Vite proxies `/api` → `:8000`)
 - **Production build:** `npm run build` → `dist/`
-- **No TypeScript, no test suite** (known MVP gap; `npm run build` is the
-  automated check — see Root TODO §10)
+- **Unit tests:** `npm test` (Vitest — pure service modules: analytics
+  bridge, tile config, journey-focus derivation)
+- **Lint:** `npm run lint` (ESLint flat config — recommended + react-hooks
+  rules only; warnings are advisory)
+- **No TypeScript, no component tests** (remaining MVP gap; see Root TODO §10)
 
 ## Quick start
 
