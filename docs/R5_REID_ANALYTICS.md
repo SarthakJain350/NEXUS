@@ -1,5 +1,11 @@
 # NEXUS R5 — Re-ID + Analytics + Alerts
 
+> **Status (2026-09-12):** offline/reference layer. `reid/` and `analytics/`
+> are unit-tested Python modules but are **not wired into the live pipeline
+> or backend** — the dashboard computes its own client-side analytics/alerts
+> (decision D4), and cross-camera association is plate-linking (decision D3).
+> The flow below is the intended architecture, not the current runtime path.
+
 ## Responsibility
 
 R5 owns visual vehicle Re-ID, similarity scoring, traffic analytics and anomaly
