@@ -1,3 +1,14 @@
+# ⚠️ NEXUS note (2026-09-12)
+
+This directory contains a **vendored LPRNet implementation, adapted for
+Indian number plates, kept as an experimental OCR path** (`models/
+best_lprnet.pth`). The **active** NEXUS OCR engines are Fast-Plate-OCR
+(`cct-s-v2-global-model`, default) and the optional GPT-4o-mini fallback in
+`app.py`; `r2_anpr/` wraps the pytesseract-based OCR stage. Everything below
+this note is the original upstream LPRNet documentation, preserved as-is.
+
+---
+
 ## LPRNet Pytorch
 Indian Number Plate Modification LPRNet, A High Performance And Lightweight License Plate Recognition Framework.(Chinese Number Plates Recognition)
 

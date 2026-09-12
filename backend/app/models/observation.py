@@ -3,12 +3,19 @@
 An observation = "a vehicle was detected/tracked/read at a particular
 camera and time." vehicle_id is nullable at insert (R6 fuses later,
 §6.4); ingest_id is the optional idempotency key (§6.2).
+
+R1/R2 integration (2026-09-12, migration 0002): frame_id, vehicle_bbox,
+trajectory and vehicle_crop_reference store the frozen NEXUSVehicle
+contract's per-observation ML fields; latitude/longitude became nullable
+(camera-row fallback, decision C7). vehicle_crop itself never enters the
+DB — only a path/URL reference (C4).
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -40,10 +47,20 @@ class Observation(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     vehicle_type: Mapped[str] = mapped_column(String(16))
     confidence: Mapped[float] = mapped_column(Float)
-    latitude: Mapped[float] = mapped_column(Float)
-    longitude: Mapped[float] = mapped_column(Float)
+    # Nullable since migration 0002 (C7): payload → camera row → null.
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
     # Optional idempotency key — nullable-unique (§6.2).
     ingest_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # --- Frozen NEXUSVehicle contract fields (migration 0002) ---------------
+    # Opaque per-frame identifier from the ML pipeline (C5).
+    frame_id: Mapped[str | None] = mapped_column(String(64))
+    # [x1, y1, x2, y2] in frame pixels; JSONB so no awkward serialization.
+    vehicle_bbox: Mapped[Optional[list[Any]]] = mapped_column(JSONB)
+    # Opaque R1 trajectory array; the derivable journey stays authoritative.
+    trajectory: Mapped[Optional[list[Any]]] = mapped_column(JSONB)
+    # Path/URL to the crop artifact — binary crops never stored (C4).
+    vehicle_crop_reference: Mapped[str | None] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

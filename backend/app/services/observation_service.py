@@ -82,6 +82,24 @@ def _insert(db: Session, payload: ObservationCreate) -> Observation:
             camera = camera_repo.create_unregistered(db, payload.camera_id)
         camera_repo.touch_last_seen(db, camera, payload.timestamp)
 
+        # C7 (D13 resolution): the frozen ML contract carries no GPS fields.
+        # Payload coordinates win; otherwise fall back to the camera row's
+        # registered position; cameras without GPS leave the observation
+        # coordinate-less (null) rather than blocking ingest.
+        if payload.latitude is None or payload.longitude is None:
+            payload = payload.model_copy(
+                update={
+                    "latitude": (
+                        payload.latitude if payload.latitude is not None else camera.latitude
+                    ),
+                    "longitude": (
+                        payload.longitude
+                        if payload.longitude is not None
+                        else camera.longitude
+                    ),
+                }
+            )
+
         # §6.4: link to the vehicle already known for this plate, else
         # create a provisional one; no plate → no fabricated vehicle.
         vehicle_id: int | None = None

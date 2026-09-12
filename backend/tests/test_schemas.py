@@ -185,6 +185,19 @@ class TestCoordinates:
         obs = ObservationCreate(**valid_payload(latitude=0.0, longitude=0.0))
         assert obs.latitude == 0.0 and obs.longitude == 0.0
 
+    def test_coordinates_optional_since_r1r2(self):
+        # C7 (D13): the frozen ML contract has no GPS fields — the schema
+        # accepts absent coordinates; the service layer falls back to the
+        # camera row's position.
+        obs = ObservationCreate(
+            **{k: v for k, v in valid_payload().items() if k not in ("latitude", "longitude")}
+        )
+        assert obs.latitude is None and obs.longitude is None
+
+    def test_partial_coordinates_allowed(self):
+        obs = ObservationCreate(**valid_payload(latitude=None))
+        assert obs.latitude is None and obs.longitude == 77.20
+
 
 class TestMissingFields:
     @pytest.mark.parametrize(
@@ -194,9 +207,6 @@ class TestMissingFields:
             "track_id",
             "timestamp",
             "vehicle_type",
-            "confidence",
-            "latitude",
-            "longitude",
         ],
     )
     def test_required_fields(self, field):
@@ -204,3 +214,19 @@ class TestMissingFields:
         del payload[field]
         with pytest.raises(ValidationError):
             ObservationCreate(**payload)
+
+    # latitude/longitude: optional since the R1/R2 integration (C7) — the
+    # camera row is the fallback. confidence: optional, but only when
+    # plate_confidence stands in for it (C3).
+    def test_confidence_required_without_plate_confidence(self):
+        payload = valid_payload()
+        del payload["confidence"]
+        with pytest.raises(ValidationError):
+            ObservationCreate(**payload)
+
+    def test_confidence_falls_back_to_plate_confidence(self):
+        payload = valid_payload()
+        del payload["confidence"]
+        payload["plate_confidence"] = 0.87
+        obs = ObservationCreate(**payload)
+        assert obs.confidence == 0.87

@@ -1,11 +1,11 @@
-"""Observation data access (Plan §4, §6.5, §6.8)."""
+"""Observation data access (Plan §4, §6.5, §6.8) + plate-read trail (C9)."""
 
 from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Observation
+from app.models import Observation, PlateRead
 from app.schemas.observation import ObservationCreate
 
 
@@ -23,10 +23,56 @@ def create(
         latitude=payload.latitude,
         longitude=payload.longitude,
         ingest_id=payload.ingest_id,
+        frame_id=payload.frame_id,
+        vehicle_bbox=payload.vehicle_bbox,
+        trajectory=payload.trajectory,
+        vehicle_crop_reference=payload.vehicle_crop_reference,
     )
     db.add(observation)
     db.flush()
+
+    # C9: preserve the raw OCR trail whenever the producer sent any plate
+    # information — even an unreadable/None-normalized read is a real event
+    # worth analyzing later. Fresh inserts only (ingest_id replays return
+    # before reaching here), so no duplicate trail rows are possible.
+    if _has_plate_info(payload):
+        db.add(
+            PlateRead(
+                observation_id=observation.id,
+                plate_number_raw=payload.raw_plate_text or "",
+                plate_number_normalized=payload.plate_number,
+                confidence=payload.plate_confidence,
+                ocr_confidence=payload.ocr_confidence,
+                detection_confidence=payload.detection_confidence,
+                plate_bbox=payload.plate_bbox,
+                source=payload.ocr_engine,
+                timestamp=payload.timestamp,
+            )
+        )
     return observation
+
+
+def _has_plate_info(payload: ObservationCreate) -> bool:
+    return any(
+        (
+            payload.plate_number,
+            payload.raw_plate_text,
+            payload.plate_confidence is not None,
+            payload.plate_bbox is not None,
+        )
+    )
+
+
+def plate_reads_for_observation(
+    db: Session, observation_id: int
+) -> list[PlateRead]:
+    return list(
+        db.scalars(
+            select(PlateRead)
+            .where(PlateRead.observation_id == observation_id)
+            .order_by(PlateRead.id.asc())
+        )
+    )
 
 
 def get_by_id(db: Session, observation_id: int) -> Observation | None:

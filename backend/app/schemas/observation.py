@@ -3,6 +3,12 @@
 Field names/meanings are the multi-team contract; do not rename casually.
 All §3 validation rules live here so every entry point (single POST,
 batch POST, future loaders) gets identical behavior.
+
+R1/R2 integration (2026-09-12): the frozen NEXUSVehicle ML contract names
+are accepted as aliases — `vehicle_class` → `vehicle_type`, `plate_text` →
+`plate_number`, `raw_ocr_text` → `raw_plate_text` — so a producer can POST
+either naming. Responses always use the backend-native names (R4/R5 are
+verified consumers of those). Full mapping table in docs/integration.md.
 """
 
 from __future__ import annotations
@@ -10,8 +16,9 @@ from __future__ import annotations
 import logging
 import math
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 logger = logging.getLogger("nexus.schemas.observation")
 
@@ -31,6 +38,12 @@ PLATE_MIN_LEN = 4
 PLATE_MAX_LEN = 12
 PLATE_SEPARATORS = " -._"
 
+# OCR engines emit sentinel strings instead of a plate when they cannot
+# read one (app.py's LLM fallback returns "UNREADABLE"; adapters add
+# "UNKNOWN"/"INVALID"/"NOREAD"). These mean *no plate read*, not a plate
+# literally spelling UNREADABLE (decision C8, docs/integration.md).
+UNREADABLE_PLATE_TEXTS = frozenset({"UNREADABLE", "UNKNOWN", "INVALID", "NOREAD"})
+
 # Allow-list with fallback (D7): R1's detector classes may evolve
 # independently of the backend, so unknown types map to "other" instead of
 # being rejected.
@@ -42,12 +55,14 @@ def normalize_plate(value: str | None) -> str | None:
 
     Whitespace-only / empty input is treated as *no plate* (None), not a
     valid-but-empty plate — a common silent bug from upstream CSV/JSON
-    exports (Plan §3).
+    exports (Plan §3). OCR sentinel strings (C8) also map to None.
     """
     if value is None:
         return None
     stripped = value.strip()
     if not stripped:
+        return None
+    if stripped.upper() in UNREADABLE_PLATE_TEXTS:
         return None
     normalized = stripped.upper()
     for sep in PLATE_SEPARATORS:
@@ -65,11 +80,47 @@ def normalize_plate(value: str | None) -> str | None:
     return normalized
 
 
+def _confidence_in_unit_range(value: float, field_name: str) -> float:
+    """Strict [0,1] + finite check for every confidence-flavored field.
+
+    Values above 1 are NOT silently rescaled here (decision C1): the API
+    contract is unambiguous [0,1], and R2's 0–100 heuristic scores are
+    converted only in the integration adapter so the scale of every stored
+    number is provable.
+    """
+    if not math.isfinite(value):
+        raise ValueError(f"{field_name} must be a finite number")
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{field_name} must be in [0.0, 1.0] (got {value})")
+    return value
+
+
+def _bbox_shape(value: Any, field_name: str) -> list[float] | None:
+    """Bounding boxes are [x1, y1, x2, y2] with finite coordinates."""
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        raise ValueError(f"{field_name} must be a list of 4 numbers [x1, y1, x2, y2]")
+    coords = []
+    for coord in value:
+        if isinstance(coord, bool) or not isinstance(coord, (int, float)) or not math.isfinite(coord):
+            raise ValueError(f"{field_name} must contain only finite numbers")
+        coords.append(float(coord))
+    return coords
+
+
 class ObservationCreate(BaseModel):
     """A single vehicle observation from a camera pipeline (R1/R2).
 
     Unexpected extra fields are ignored (documented decision, Plan §14.1):
     upstream pipelines may add fields before the contract catches up.
+    In particular the frozen contract's `vehicle_crop` (binary image data)
+    is ignored — crops never enter PostgreSQL; use `vehicle_crop_reference`
+    for a path/URL if a producer keeps crops on disk/object storage (C4).
+
+    Frozen-contract aliases accepted on input (C2): `vehicle_class` →
+    vehicle_type, `plate_text` → plate_number, `raw_ocr_text` →
+    raw_plate_text. Responses use the backend-native names.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -89,10 +140,24 @@ class ObservationCreate(BaseModel):
     )
     plate_number: str | None = Field(
         None,
+        validation_alias=AliasChoices("plate_number", "plate_text"),
         description=(
             "Normalized plate text, or null when ANPR failed / plate "
             "obstructed / non-plated vehicle. Normalized on ingest: "
-            "uppercase, whitespace and separators stripped."
+            "uppercase, whitespace and separators stripped. OCR sentinel "
+            "strings (UNREADABLE/UNKNOWN/INVALID/NOREAD) are treated as no "
+            "plate. Alias: plate_text (frozen contract)."
+        ),
+    )
+    raw_plate_text: str | None = Field(
+        None,
+        max_length=64,
+        validation_alias=AliasChoices("raw_plate_text", "raw_ocr_text"),
+        description=(
+            "Raw OCR output before normalization, preserved in the "
+            "plate_reads trail for OCR-quality analysis. When omitted, the "
+            "pre-normalization plate_number/plate_text value is used. "
+            "Alias: raw_ocr_text."
         ),
     )
     timestamp: datetime = Field(
@@ -104,16 +169,35 @@ class ObservationCreate(BaseModel):
     )
     vehicle_type: str = Field(
         ...,
-        description="One of: car, motorcycle, bus, truck, auto, other. Unknown values are stored as 'other'.",
+        validation_alias=AliasChoices("vehicle_type", "vehicle_class"),
+        description=(
+            "One of: car, motorcycle, bus, truck, auto, other. Unknown values "
+            "are stored as 'other'. Alias: vehicle_class (frozen contract)."
+        ),
     )
-    confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Detection/OCR confidence in [0.0, 1.0].",
+    confidence: float | None = Field(
+        None,
+        description=(
+            "Detection confidence in [0.0, 1.0]. Falls back to "
+            "plate_confidence when absent (the frozen contract carries no "
+            "other confidence); at least one of the two is required."
+        ),
     )
-    latitude: float = Field(..., ge=-90.0, le=90.0, description="Latitude in decimal degrees.")
-    longitude: float = Field(..., ge=-180.0, le=180.0, description="Longitude in decimal degrees.")
+    latitude: float | None = Field(
+        None,
+        description=(
+            "Latitude in decimal degrees. Optional (D13/C7): when absent, "
+            "the camera row's latitude is used; if the camera has none "
+            "either, null is stored. Range-checked when present."
+        ),
+    )
+    longitude: float | None = Field(
+        None,
+        description=(
+            "Longitude in decimal degrees. Optional (D13/C7): camera-row "
+            "fallback, else null. Range-checked when present."
+        ),
+    )
     ingest_id: str | None = Field(
         None,
         max_length=64,
@@ -123,6 +207,75 @@ class ObservationCreate(BaseModel):
             "and replays with the same ingest_id return the existing record."
         ),
     )
+    # --- Frozen NEXUSVehicle contract fields (R1/R2 integration, 2026-09-12)
+    frame_id: int | str | None = Field(
+        None,
+        description=(
+            "Per-frame identifier from the ML pipeline (int or short string). "
+            "Informational only — timestamp+camera_id+track_id already "
+            "identify the observation. Stored opaque, max 64 chars."
+        ),
+    )
+    vehicle_bbox: list[float] | None = Field(
+        None,
+        description="Vehicle bounding box [x1, y1, x2, y2] in frame pixels.",
+    )
+    trajectory: list[Any] | None = Field(
+        None,
+        description=(
+            "Opaque trajectory array from R1 tracking (e.g. list of [x, y] "
+            "points). Stored as-is; the authoritative journey remains "
+            "GET /vehicles/{id}/journey."
+        ),
+    )
+    vehicle_crop_reference: str | None = Field(
+        None,
+        max_length=512,
+        description=(
+            "Optional path/URL to the vehicle crop artifact (never binary "
+            "image data — crops stay outside PostgreSQL, decision C4)."
+        ),
+    )
+    plate_bbox: list[float] | None = Field(
+        None,
+        description="Plate bounding box [x1, y1, x2, y2]; stored on the plate_reads trail.",
+    )
+    plate_confidence: float | None = Field(
+        None,
+        description=(
+            "Confidence of the plate read itself, [0.0, 1.0]. Stored on the "
+            "plate_reads trail; used as observation confidence when "
+            "`confidence` is absent. Not merged with ocr_confidence or "
+            "detection_confidence (C3)."
+        ),
+    )
+    ocr_confidence: float | None = Field(
+        None,
+        description="OCR-engine-specific confidence [0.0, 1.0], when reported separately.",
+    )
+    detection_confidence: float | None = Field(
+        None,
+        description="Plate-detection confidence [0.0, 1.0], when reported separately.",
+    )
+    ocr_engine: str | None = Field(
+        None,
+        max_length=64,
+        description="OCR engine/model that produced the read, e.g. 'fast-plate-ocr', 'pytesseract'.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _capture_raw_plate_text(cls, data: Any) -> Any:
+        """Preserve the pre-normalization plate text for the plate_reads
+        trail (C9) before field validators normalize plate_number."""
+        if not isinstance(data, dict):
+            return data
+        raw = data.get("raw_plate_text", data.get("raw_ocr_text"))
+        if raw is None:
+            plate = data.get("plate_number", data.get("plate_text"))
+            if plate is not None:
+                data["raw_plate_text"] = str(plate)
+        return data
 
     @field_validator("camera_id")
     @classmethod
@@ -138,6 +291,14 @@ class ObservationCreate(BaseModel):
     @classmethod
     def _plate_normalized(cls, v: str | None) -> str | None:
         return normalize_plate(v)
+
+    @field_validator("raw_plate_text")
+    @classmethod
+    def _raw_plate_text_stripped(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
     @field_validator("timestamp")
     @classmethod
@@ -167,11 +328,79 @@ class ObservationCreate(BaseModel):
 
     @field_validator("confidence")
     @classmethod
-    def _confidence_finite(cls, v: float) -> float:
-        # NaN/Inf can leak through from numpy-sourced floats serialized
-        # upstream (Plan §3) — reject explicitly.
-        if not math.isfinite(v):
-            raise ValueError("confidence must be a finite number")
+    def _confidence_unit_range(cls, v: float | None) -> float | None:
+        # Strict [0,1] — no silent 0–100 rescaling at the API boundary (C1);
+        # NaN/Inf can leak through from numpy-sourced floats (Plan §3).
+        return None if v is None else _confidence_in_unit_range(v, "confidence")
+
+    @field_validator("plate_confidence")
+    @classmethod
+    def _plate_confidence_unit_range(cls, v: float | None) -> float | None:
+        return None if v is None else _confidence_in_unit_range(v, "plate_confidence")
+
+    @field_validator("ocr_confidence")
+    @classmethod
+    def _ocr_confidence_unit_range(cls, v: float | None) -> float | None:
+        return None if v is None else _confidence_in_unit_range(v, "ocr_confidence")
+
+    @field_validator("detection_confidence")
+    @classmethod
+    def _detection_confidence_unit_range(cls, v: float | None) -> float | None:
+        return None if v is None else _confidence_in_unit_range(v, "detection_confidence")
+
+    @field_validator("latitude")
+    @classmethod
+    def _latitude_range(cls, v: float | None) -> float | None:
+        if v is None:
+            return None
+        if not math.isfinite(v) or not -90.0 <= v <= 90.0:
+            raise ValueError("latitude must be in [-90.0, 90.0]")
+        return v
+
+    @field_validator("longitude")
+    @classmethod
+    def _longitude_range(cls, v: float | None) -> float | None:
+        if v is None:
+            return None
+        if not math.isfinite(v) or not -180.0 <= v <= 180.0:
+            raise ValueError("longitude must be in [-180.0, 180.0]")
+        return v
+
+    @field_validator("frame_id")
+    @classmethod
+    def _frame_id_to_str(cls, v: int | str | None) -> str | None:
+        # Opaque identifier: normalize int → str so round-trips are stable
+        # in the String(64) column (C5).
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            raise ValueError("frame_id must be an integer or string, not a boolean")
+        if isinstance(v, int):
+            v = str(v)
+        v = v.strip()
+        if not v:
+            return None
+        if len(v) > 64:
+            raise ValueError("frame_id must be at most 64 characters")
+        return v
+
+    @field_validator("vehicle_bbox")
+    @classmethod
+    def _vehicle_bbox_shape(cls, v: Any) -> list[float] | None:
+        return _bbox_shape(v, "vehicle_bbox")
+
+    @field_validator("plate_bbox")
+    @classmethod
+    def _plate_bbox_shape(cls, v: Any) -> list[float] | None:
+        return _bbox_shape(v, "plate_bbox")
+
+    @field_validator("trajectory")
+    @classmethod
+    def _trajectory_is_list(cls, v: Any) -> list[Any] | None:
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            raise ValueError("trajectory must be a list of points")
         return v
 
     @field_validator("ingest_id")
@@ -183,7 +412,17 @@ class ObservationCreate(BaseModel):
         return v or None
 
     @model_validator(mode="after")
-    def _warn_gps_sentinel(self) -> "ObservationCreate":
+    def _resolve_confidence_and_gps(self) -> "ObservationCreate":
+        # The frozen contract carries only plate_confidence; when the
+        # producer sends no detection-level `confidence`, the plate read's
+        # confidence stands in for it (C3) — one of the two is required.
+        if self.confidence is None:
+            if self.plate_confidence is None:
+                raise ValueError(
+                    "confidence is required (or plate_confidence, which is "
+                    "used as a fallback)"
+                )
+            self.confidence = self.plate_confidence
         # (0.0, 0.0) is the classic uninitialized-GPS symptom: log it as a
         # data-quality warning but accept — it's technically valid ocean
         # coordinates and hard-rejecting valid input is worse (Plan §3).
@@ -201,7 +440,11 @@ ObservationBatchItem = ObservationCreate
 
 
 class ObservationRead(BaseModel):
-    """Observation as returned by the API — never expose raw ORM objects."""
+    """Observation as returned by the API — never expose raw ORM objects.
+
+    Field names are backend-native (R4/R5 verified consumers); the frozen
+    ML-contract aliases (vehicle_class, plate_text, ...) are input-only.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -213,14 +456,22 @@ class ObservationRead(BaseModel):
     timestamp: datetime
     vehicle_type: str
     confidence: float
-    latitude: float
-    longitude: float
+    latitude: float | None
+    longitude: float | None
     ingest_id: str | None
+    frame_id: str | None
+    vehicle_bbox: list[float] | None
+    trajectory: list[Any] | None
+    vehicle_crop_reference: str | None
     created_at: datetime
 
 
 class JourneyPoint(BaseModel):
-    """One stop in a vehicle's journey, ordered by timestamp ascending (§6.5)."""
+    """One stop in a vehicle's journey, ordered by timestamp ascending (§6.5).
+
+    latitude/longitude are nullable (C7): observations from cameras without
+    GPS data carry no coordinates; map consumers must skip those points.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -231,8 +482,8 @@ class JourneyPoint(BaseModel):
     timestamp: datetime
     vehicle_type: str
     confidence: float
-    latitude: float
-    longitude: float
+    latitude: float | None
+    longitude: float | None
 
 
 class RejectedItem(BaseModel):
