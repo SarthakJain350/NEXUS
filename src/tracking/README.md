@@ -1,6 +1,6 @@
 # R1 — Vehicle Detection + Per-Camera Tracking
 
-Owner: HARSHIT. Code: `src/tracking/r1_tracker.py`,
+Owner: Rohan. Code: `src/tracking/r1_tracker.py`,
 runners: `scripts/run_r1_tracking.py` (annotated demo video) and
 `scripts/run_video_live_ingest.py` (end-to-end R1→R2→R3 bridge).
 Tests: `tests/test_r1_tracking.py` (7 tests, no GPU/dataset needed).
