@@ -25,6 +25,7 @@ from app.schemas.observation import (
     VEHICLE_TYPES,
     normalize_plate,
 )
+from app.schemas.plate_read import PlateReadRead
 from app.schemas.vehicle import VehicleRead, VehicleUpdate
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "ObservationBatchItem",
     "ObservationCreate",
     "ObservationRead",
+    "PlateReadRead",
     "RejectedItem",
     "VEHICLE_TYPES",
     "VehicleRead",

@@ -12,78 +12,130 @@ license: mit
 
 <div align="center">
 
-# 🚗 NEXUS — ANPR Pipeline
+# 🚗 NEXUS — City-Wide AI Engine for Multi-Camera ANPR
 
-**Automatic Number Plate Recognition · Edge-Optimized · Real-Time Inference**
+**Vehicle Detection · Trajectory Tracking · Automatic Number Plate Recognition · Urban Traffic Analytics**
 
-[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
-[![YOLOv11](https://img.shields.io/badge/Ultralytics-YOLOv11-blue?logo=udacity&logoColor=white)](https://docs.ultralytics.com)
-[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org)
-[![ONNX](https://img.shields.io/badge/ONNX-Runtime-005CED?logo=onnx&logoColor=white)](https://onnxruntime.ai)
+Smart India Hackathon 2026 · Problem Statement **SIH26127**
+
+[![Streamlit](https://img.shields.io/badge/Streamlit_Demo-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/DB-PostgreSQL_16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![YOLOv11](https://img.shields.io/badge/Ultralytics-YOLOv11-blue)](https://docs.ultralytics.com)
+[![React](https://img.shields.io/badge/Frontend-React_+_Leaflet-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Hugging Face](https://img.shields.io/badge/🤗_HuggingFace-Space-yellow)](https://huggingface.co/spaces/Sarthak403/NEXUS)
 
 </div>
+
+> **⚠️ Project status: SIH MVP / prototype.** This is a hackathon prototype
+> demonstrating the full architecture end-to-end on development-scale data —
+> not a production traffic-surveillance system.
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
-- [Live Demo](#-live-demo)
-- [Key Features](#-key-features)
-- [Pipeline Architecture](#-pipeline-architecture)
+- [Architecture](#-architecture)
+- [Module Ownership](#-module-ownership)
+- [The ANPR Engine (Detection + OCR Core)](#-the-anpr-engine-detection--ocr-core)
 - [Model Performance](#-model-performance)
-- [Tech Stack](#-tech-stack)
+- [Datasets](#-datasets)
 - [Project Structure](#-project-structure)
 - [Getting Started](#-getting-started)
-- [Usage](#-usage)
-- [Training](#-training)
-- [ONNX Export](#-onnx-export)
-- [Creating Submissions](#-creating-submissions)
+- [R1/R2 → R3 Data Contract](#-r1r2--r3-data-contract)
+- [API & Database](#-api--database)
+- [Testing](#-testing)
+- [Demo Flow](#-demo-flow)
 - [Deployment](#-deployment)
-- [Configuration](#-configuration)
-- [Technical Deep Dive](#-technical-deep-dive)
-- [Future Roadmap](#-future-roadmap)
+- [Current Status & Limitations](#-current-status--limitations)
+- [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
 - [License](#-license)
-- [Acknowledgements](#-acknowledgements)
 
 ---
 
 ## 🔍 Overview
 
-**NEXUS** is a high-accuracy, edge-optimized Automatic Number Plate Recognition (ANPR) system built for the **NEXUS Challenge**. It implements a two-stage detection pipeline — first detecting vehicles in a scene, then localizing license plates within each vehicle ROI, and finally performing OCR to extract the plate text.
+**NEXUS** is a city-wide AI engine that turns ordinary CCTV feeds into a
+queryable traffic record: it detects and tracks vehicles across cameras
+(R1), reads their number plates (R2), persists every observation with its
+plate trail in PostgreSQL (R3), computes traffic analytics and raises alerts
+(R5), and visualizes cameras, vehicles and journeys on a GIS dashboard (R4).
+Cross-camera fusion into global vehicle identities (R6) is integrated at the
+API-contract level; its implementation is intentionally out of scope here.
 
-The system achieves **99.49% mAP@50** with a lightweight 2.6M parameter model, making it suitable for real-time edge deployment while maintaining near-perfect detection accuracy.
-
----
-
-## 🌐 Live Demo
-
-> **Try it live on Hugging Face Spaces:**  
-> 🔗 [https://huggingface.co/spaces/Sarthak403/NEXUS](https://huggingface.co/spaces/Sarthak403/NEXUS)
-
-Upload any vehicle image or video and get instant plate detection + OCR results.
-
----
-
-## ✨ Key Features
-
-| Feature | Description |
-|---------|-------------|
-| 🚙 **Two-Stage Detection** | Vehicle detection (COCO YOLOv11n) → Plate detection (custom fine-tuned YOLOv11n) |
-| 🔤 **Dual OCR Engines** | Fast-Plate-OCR (~5ms) + GPT-4o-mini via OpenRouter as a fallback |
-| 🌙 **Night Vision** | CLAHE contrast enhancement in LAB colorspace for low-light scenarios |
-| ⚡ **ONNX Optimized** | Export to ONNX for cross-platform edge inference (~6ms per frame) |
-| 🎬 **Video Inference** | Frame-by-frame video processing with configurable sample rate |
-| 🔥 **GPU Acceleration** | Automatic CUDA detection with seamless CPU fallback |
-| 🔄 **Smart Fallback** | If no vehicle is detected, runs plate detection on the full frame |
-| 📊 **Real-Time Metrics** | Live inference time, vehicle count, and plate count displayed in-dashboard |
+The detection/OCR core is a two-stage pipeline — vehicle detection (COCO
+YOLOv11n), then plate detection inside each vehicle crop (custom fine-tuned
+YOLOv11n, **99.49% mAP@50** with only 2.6M parameters) — followed by
+Fast-Plate-OCR with an optional GPT-4o-mini fallback.
 
 ---
 
-## 🏗️ Pipeline Architecture
+## 🏗️ Architecture
+
+```
+            CCTV feeds (Indian traffic video)
+                        │
+                        ▼
+        ┌───────────────────────────────┐
+        │  R1 — Vehicle Detection +     │  YOLO vehicle detect + ByteTrack
+        │  Per-Camera Tracking          │  → persistent per-camera track_id
+        └───────────────┬───────────────┘
+                        │  vehicle crop + track
+                        ▼
+        ┌───────────────────────────────┐
+        │  R2 — ANPR / OCR              │  plate detection + OCR
+        │  (r2_anpr/ + engine core)     │  → plate text + confidence
+        └───────────────┬───────────────┘
+                        │  combined NEXUS observation (JSON)
+                        ▼
+        ┌───────────────────────────────┐
+        │  R3 — Backend + PostgreSQL    │  FastAPI ingest (idempotent),
+        │  (backend/)                   │  observations/vehicles/cameras,
+        │                               │  plate_reads OCR trail
+        └───────────────┬───────────────┘
+                        │  REST API
+          ┌─────────────┴─────────────┐
+          ▼                           ▼
+┌───────────────────┐       ┌───────────────────┐
+│  R5 — Re-ID +     │       │  R4 — Frontend +  │
+│  Analytics/Alerts │       │  GIS Dashboard    │
+│  (reid/,analytics)│       │  (frontend/,React)│
+└─────────┬─────────┘       └───────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────┐
+│  R6 — Cross-Camera Fusion                        │
+│  (integration contract only — PATCH             │
+│   /observations/{id}/vehicle; implementation     │
+│   not part of this repository's scope)           │
+└─────────────────────────────────────────────────┘
+```
+
+The frozen inter-module vehicle-observation contract (camera_id, frame_id,
+timestamp, track_id, vehicle_class, vehicle_bbox, trajectory, plate_bbox,
+plate_text, plate_confidence, ...) lets all six modules work independently;
+see [R1/R2 → R3 Data Contract](#-r1r2--r3-data-contract) and
+`docs/integration.md`.
+
+---
+
+## 👥 Module Ownership
+
+| Module | Owner | Code | Status |
+|---|---|---|---|
+| **R1** — vehicle detection + per-camera tracking | R1 (HARSHIT) | root pipeline (`app.py` detection stage) | ⚠️ detection works; ByteTrack tracking output not delivered yet |
+| **R2** — ANPR + OCR | R2 (khushi) | `r2_anpr/` + engine core in `app.py` | ✅ plate detection + OCR (known bug: `anpr_pipeline.py` broken import) |
+| **R3** — backend + PostgreSQL | R3 (Sarthak) | `backend/` | ✅ shipped: ingest, idempotency, journeys, plate_reads trail, R1/R2 contract integration |
+| **R4** — frontend + GIS dashboard | R4 (Rushil) | `frontend/` (React + Vite + Leaflet) | ✅ dashboard live against the backend API |
+| **R5** — Re-ID + analytics + alerts | R5 (Harshit) | `reid/`, `analytics/` | ✅ analytics, alerts, offline demo |
+| **R6** — cross-camera fusion | R6 | — (API contract only) | ⛔ intentionally out of scope; provisional integration point in R3 |
+
+---
+
+## 🧠 The ANPR Engine (Detection + OCR Core)
 
 ```
 Input Image / Video Frame
@@ -106,24 +158,24 @@ Input Image / Video Frame
 │   + CLAHE (optional)    │  Bilateral filter denoising
 │   + 4× Lanczos Upscale  │  Enhances small plate readability
 └──────────┬──────────────┘
-           │
            ▼
 ┌─────────────────────────┐
 │   OCR Engine            │  Fast-Plate-OCR  (~5ms, default)
 │                         │  GPT-4o-mini     (fallback via API)
-└──────────┬──────────────┘
-           │
-           ▼
-     Plate Text + Confidence Score
-
-🔄 Fallback: If no vehicles detected → plate detector runs on full frame
-🔄 Submission fallback: 90° rotation if no plates found in original orientation
+└─────────────────────────┘
 ```
 
-**Why two-stage?**
-- Reduces false positives (shop signs, road boards that resemble plates)
-- Improves plate detector accuracy by providing focused, smaller ROIs
-- Reduces effective detection area by ~60–80% → faster inference per frame
+- **Why two-stage?** Fewer false positives (shop signs, road boards), focused
+  ROIs improve plate accuracy, and ~60–80% less effective detection area.
+- **Fallback:** if no vehicle is detected, the plate detector runs on the
+  full frame (and at 90° rotation for submissions).
+- `r2_anpr/` wraps the OCR stage (preprocess → pytesseract OCR → plate
+  cleaning → heuristic confidence + readability status); its output feeds the
+  R3 adapter (`backend/app/integration/r1r2.py`).
+
+The interactive **Streamlit demo** (`app.py`) runs this engine on uploaded
+images/videos with live metrics — deployed on
+[Hugging Face Spaces](https://huggingface.co/spaces/Sarthak403/NEXUS).
 
 ---
 
@@ -138,102 +190,69 @@ Input Image / Video Frame
 | **Precision** | **99.90%** |
 | **Recall** | **99.45%** |
 | **F1 Score** | **99.67%** |
-| Val Box Loss | 1.333 |
-| Val Cls Loss | 0.707 |
-
-### Benchmark Comparison
 
 | Model | Params | mAP@50 | mAP@50-95 |
 |-------|--------|--------|-----------|
 | YOLOv8n COCO general | — | ~37% | ~18% |
 | Typical LP detector (academic) | — | 92–96% | 55–65% |
 | YOLOv8m fine-tuned LP | 25M | ~97% | ~68% |
-| **KnightSight (ours)** | **2.6M** | **99.49%** | **72.91%** |
+| **NEXUS plate detector (ours)** | **2.6M** | **99.49%** | **72.91%** |
 
-> Our 2.6M parameter nano model **outperforms** a 25M parameter medium model on both metrics.
-
-### Model Specs
-
-| Property | Value |
-|----------|-------|
-| Architecture | YOLOv11n (anchor-free, single-class) |
-| Parameters | ~2.6M |
-| Model Size | 5.3 MB (PT) / 10.5 MB (ONNX) |
-| Input Resolution | 480 × 480 px |
-| Training | 20 epochs · batch=32 · RTX 4060 |
-| Optimizer | AdamW + cosine LR decay |
-| Inference Speed | ~8ms (PT) / ~6ms (ONNX) on RTX 4060 |
+Model specs: YOLOv11n (anchor-free, single-class), ~2.6M params, 5.3 MB (PT) /
+10.5 MB (ONNX), 480×480 input, ~8 ms (PT) / ~6 ms (ONNX) on RTX 4060.
+Training details, augmentation pipeline and the full technical report:
+[`explain.md`](explain.md), [`notebooks/train.ipynb`](notebooks/train.ipynb),
+[`configs/nexus.yaml`](configs/nexus.yaml).
 
 ---
 
-## 🛠️ Tech Stack
+## 🗃️ Datasets
 
-| Component | Technology |
-|-----------|-----------|
-| **Detection** | [Ultralytics YOLOv11](https://docs.ultralytics.com) |
-| **OCR (Primary)** | [Fast-Plate-OCR](https://github.com/ankandrew/fast-plate-ocr) (`cct-s-v2-global-model`) |
-| **OCR (Fallback)** | [GPT-4o-mini](https://openrouter.ai) via OpenRouter API |
-| **Framework** | [PyTorch](https://pytorch.org) + [ONNX Runtime](https://onnxruntime.ai) |
-| **Image Processing** | [OpenCV](https://opencv.org) (CLAHE, bilateral filter, Lanczos upscale) |
-| **Frontend** | [Streamlit](https://streamlit.io) |
-| **GPU Support** | CUDA (auto-detected) |
-| **Environment** | [python-dotenv](https://pypi.org/project/python-dotenv/) for API key management |
+Two datasets with distinct roles (the team uses small development subsets —
+the full driving dataset is ~210 GB and is **not** required to run anything
+in this repo; nothing here depends on one developer's local paths):
+
+1. **Indian Road Driving Dataset** (Delhi NCR; ~8,441 clips / 646k annotated
+   frames / 6.9M detections; BDD100K-style; day/night/dusk/rain; car, truck,
+   bus, motorcycle, autorickshaw; GPS-tagged frames) —
+   R1 vehicle detection, tracking, trajectory/context, demo data.
+   *Not* a source of plate-text labels.
+2. **Indian Vehicle License Plate Dataset** (~1,500 images; state-wise and
+   highway samples; XML annotations with plate boxes + text) —
+   R2 plate detection and OCR training/testing.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-deepsight/
-├── app.py                      # 🎯 Streamlit inference dashboard (main entry point)
-├── create_submission.py        # 📦 Generate competition submission JSONs
-├── visualize_predictions.py    # 📊 Visualize model predictions on test images
+NEXUS/
+├── app.py                      # 🎯 Streamlit ANPR demo (detection/OCR engine, HF Space)
+├── create_submission.py        # 📦 Competition submission generator
+├── visualize_predictions.py    # 📊 Prediction visualizer
 │
-├── models/                     # 🧠 Model weights
-│   ├── best.pt                 #    Fine-tuned plate detector (PyTorch)
-│   ├── best.onnx               #    Fine-tuned plate detector (ONNX export)
-│   ├── best_lprnet.pth         #    LPRNet weights (experimental)
-│   ├── yolo11n.pt              #    Vehicle detector (COCO pre-trained)
-│   └── yolo26n.pt              #    YOLOv26n weights (experimental)
+├── r2_anpr/                    # 🔤 R2 — ANPR/OCR module (preprocess, OCR, plate cleaning, confidence)
+├── reid/                       # 🔁 R5 — vehicle Re-ID (feature extraction, similarity)
+├── analytics/                  # 📈 R5 — traffic analyzer, anomaly detector, alerts
 │
-├── configs/
-│   └── nexus.yaml              # 📋 Dataset & training configuration
+├── backend/                    # 🛠️ R3 — FastAPI + PostgreSQL backend
+│   ├── app/
+│   │   ├── integration/        #   R1/R2 adapter (field mapping, confidence rescaling)
+│   │   ├── api/  schemas/  services/  repositories/  models/  database/
+│   ├── alembic/                #   migrations (0001_initial, 0002_r1r2_contract_fields)
+│   ├── tests/                  #   160+ tests incl. load/stress + R1/R2 integration
+│   └── fixtures/               #   edge-case fixtures
 │
-├── scripts/
-│   ├── export_onnx.py          # 🔄 Export PyTorch → ONNX
-│   ├── aug.py                  # 🖼️ Data augmentation utilities
-│   ├── plot_results.py         # 📈 Plot training metrics
-│   └── inspect_fast_plate_api.py  # 🔍 Fast-Plate-OCR API inspector
+├── frontend/                   # 🗺️ R4 — React + Vite + Leaflet GIS command center
+│   └── src/ (components, services/api.js)
 │
-├── notebooks/
-│   ├── train.ipynb             # 🏋️ Model training notebook
-│   ├── aug.ipynb               # 🖼️ Augmentation research notebook
-│   └── nexus-dataset-checkout.ipynb  # 📂 Dataset exploration
-│
-├── src/                        # 🧩 Source modules
-│   ├── License_Plate_Recognition/
-│   ├── object_detection/
-│   └── semantic_segmentation/
-│
-├── tests/
-│   ├── test_box.py             # ✅ Bounding box unit tests
-│   └── test_inference_ocr.py   # ✅ OCR inference tests
-│
-├── docs/
-│   ├── visualizations/
-│   │   └── training_metrics.png  # 📈 Training curves visualization
-│   └── NEXUS_Challenge_FINAL.pdf  # 📄 Challenge documentation
-│
-├── runs/detect/                # 📊 Training outputs, metrics, and weights
-├── explain.md                  # 📖 Full technical report (loss functions, architecture, etc.)
-│
-├── requirements.txt            # 📦 Python dependencies
-├── packages.txt                # 📦 System-level apt packages (for HF Spaces)
-├── .env                        # 🔐 API keys (not committed)
-├── .gitignore                  # 🚫 Git ignore rules
-├── .gitattributes              # 📎 Git LFS tracking (*.pt, *.onnx, *.pth, etc.)
-├── run.bat                     # 🖥️ Windows launch script
-└── run_plot.bat                # 📈 Windows plot metrics script
+├── models/                     # 🧠 Weights (Git LFS): best.pt/.onnx (plate), yolo11n.pt (vehicle)
+├── configs/  notebooks/  scripts/  runs/
+├── src/                        # 🧩 Training-time modules (object detection, LPR, segmentation)
+├── tests/                      # CV-side tests
+├── docs/                       # api_contract.md, database_schema.md, integration.md, R5 docs
+├── requirements.txt            # CV/Streamlit deps (backend has its own)
+└── LICENSE                     # MIT
 ```
 
 ---
@@ -242,351 +261,188 @@ deepsight/
 
 ### Prerequisites
 
-- **Python** 3.9+
-- **CUDA** 11.8+ (optional, for GPU acceleration)
-- **Git LFS** (required — model weights are tracked via LFS)
+- Python 3.9+ (root CV app) and Python 3.11+ (backend)
+- Docker Desktop (PostgreSQL 16 via `backend/docker-compose.yml`)
+- Git LFS (model weights are LFS-tracked)
+- Node 18+ (frontend only)
 
-### 1. Clone the Repository
+### 1. ANPR Streamlit demo (root environment)
 
 ```bash
 git lfs install
-git clone https://github.com/SarthakJain350/NEXUS.git
-cd NEXUS
-```
-
-### 2. Create a Virtual Environment
-
-```bash
-# Using conda
-conda create -n NEXUS python=3.11 -y
-conda activate NEXUS
-
-# Or using venv
-python -m venv venv
-source venv/bin/activate        # Linux/Mac
-venv\Scripts\activate           # Windows
-```
-
-### 3. Install Dependencies
-
-```bash
+git clone https://github.com/SarthakJain350/NEXUS.git && cd NEXUS
+python -m venv venv && venv\Scripts\activate     # or conda
 pip install -r requirements.txt
+streamlit run app.py                             # http://localhost:8501
 ```
 
-> **For GPU support**, install the CUDA-compatible PyTorch build:
-> ```bash
-> pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-> ```
+Optional `.env` with `OPENROUTER_API_KEY=...` enables the GPT-4o-mini OCR
+fallback. The app works fully without it.
 
-### 4. Set Up Environment Variables (Optional)
-
-Create a `.env` file in the project root for the GPT-4o-mini OCR fallback:
-
-```env
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-```
-
-> The app works fully without this — Fast-Plate-OCR is the default OCR engine. The OpenRouter key only enables the GPT-4o-mini fallback option in the sidebar.
-
-### 5. Run the Dashboard
+### 2. Backend (R3 — its own venv, never mixed with the CV env)
 
 ```bash
-streamlit run app.py
+cd backend
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env                           # DATABASE_URL etc.
+docker compose up -d                             # Postgres 16, wait for "healthy"
+alembic upgrade head
+uvicorn app.main:app --reload                    # http://localhost:8000/docs
 ```
 
-Or on Windows, double-click `run.bat`.
+### 3. Frontend (R4)
+
+```bash
+cd frontend
+npm install
+npm run dev                                      # http://localhost:3000 (proxies /api → :8000)
+```
+
+Full backend details: [`backend/README.md`](backend/README.md).
 
 ---
 
-## 💡 Usage
+## 🔗 R1/R2 → R3 Data Contract
 
-### Image Inference
-
-1. Open the dashboard at `http://localhost:8501`
-2. Select your preferred **Plate Model Engine** (ONNX or PyTorch) in the sidebar
-3. Choose an **OCR Engine** (Fast-Plate-OCR or Fallback Model)
-4. Adjust the **Plate Confidence** threshold (default: 0.40)
-5. Toggle **Night Vision (CLAHE)** for low-light images
-6. Upload an image via the **📷 Image Inference** tab
-7. View annotated results with detected plates and OCR text
-
-### Video Inference
-
-1. Switch to the **🎬 Video Inference** tab
-2. Upload a video file (MP4, AVI, MOV, MKV)
-3. Set the **frame sampling rate** (process every N frames)
-4. Click **▶️ Run Video Inference**
-5. Watch live annotated frames with real-time metrics
-6. Review all detected plates in the expandable summary panel
-
-### Sidebar Controls
-
-| Control | Description | Default |
-|---------|-------------|---------|
-| Plate Model Engine | ONNX (faster) or PyTorch (original) | ONNX |
-| OCR Engine | Fast-Plate-OCR or GPT-4o-mini Fallback | Fast-Plate-OCR |
-| Plate Confidence | Detection threshold (0.10 – 1.00) | 0.40 |
-| Night Vision | CLAHE contrast enhancement | Off |
-
----
-
-## 🏋️ Training
-
-### Dataset
-
-- **Classes:** 1 (`license_plate`)
-- **Split:** Scene-based (no data leakage between train/val)
-- **Format:** YOLO `.txt` labels (normalized `x_center y_center width height`)
-
-### Training Configuration
-
-```yaml
-model:          yolo11n.pt        # nano — 2.6M params, COCO pre-trained
-epochs:         20
-batch:          32
-imgsz:          480               # input resolution
-optimizer:      auto              # AdamW auto-selected
-lr0:            0.01              # initial LR
-lrf:            0.01              # final LR = lr0 × lrf
-warmup_epochs:  3.0               # cosine warmup
-amp:            true              # mixed precision FP16
-```
-
-### Augmentation Pipeline
-
-| Augmentation | Value | Purpose |
-|---|---|---|
-| HSV Hue/Sat/Val | 0.015 / 0.7 / 0.4 | Lighting & weather variation |
-| Horizontal Flip | 50% | Doubles effective dataset |
-| Translate | 0.1 | Off-center plates |
-| Scale | 0.5 | Distance variation |
-| Mosaic | 1.0 | Partial plate learning |
-| Random Erasing | 0.4 | Occlusion simulation |
-| RandAugment | auto | Photometric diversity |
-| Close Mosaic | Last 10 epochs | Stabilize fine-tuning |
-
-### Loss Functions
+The frozen NEXUS vehicle-observation contract:
 
 ```
-L_total = 10.0 × L_box(CIoU) + 1.0 × L_cls(BCE) + 1.5 × L_dfl
+camera_id · frame_id · timestamp · track_id · vehicle_class
+vehicle_bbox [x1,y1,x2,y2] · vehicle_crop · trajectory
+plate_bbox · plate_text · plate_confidence
 ```
 
-- **Box Loss (CIoU)** — Weighted 10× because precise plate localization is critical for OCR
-- **Classification Loss (BCE)** — Single-class plate vs. background
-- **Distribution Focal Loss** — Allows uncertainty-aware boundary predictions
-
-### Run Training
-
-```bash
-# Open the training notebook
-jupyter notebook notebooks/train.ipynb
-```
-
-Or train via CLI:
-
-```bash
-yolo detect train \
-  model=yolo11n.pt \
-  data=configs/nexus.yaml \
-  epochs=20 \
-  batch=32 \
-  imgsz=480 \
-  device=0
-```
-
----
-
-## 🔄 ONNX Export
-
-Export the trained model to ONNX for optimized cross-platform inference:
-
-```bash
-python scripts/export_onnx.py
-```
-
-Or directly:
+R3 accepts this **as-is** over `POST /api/v1/observations`:
+`vehicle_class`/`plate_text`/`raw_ocr_text` are input aliases;
+`frame_id`, `vehicle_bbox`, `trajectory`, `plate_bbox`, the separate
+confidences and `vehicle_crop_reference` are stored; `vehicle_crop` binary
+is ignored (crops never enter PostgreSQL). Separate R1/R2 objects are
+combined with the adapter:
 
 ```python
-from ultralytics import YOLO
-model = YOLO("models/best.pt")
-model.export(format="onnx", simplify=True)
+from app.integration import from_r1_r2
+payload = from_r1_r2(r1_dict, r2_dict)   # associates on camera_id + track_id,
+                                         # rescales R2's 0–100 heuristic confidence,
+                                         # drops UNREADABLE/ERR sentinels
+payload["ingest_id"] = "cam01-t17-f12345"
 ```
 
-| Aspect | PyTorch (.pt) | ONNX (.onnx) |
-|---|---|---|
-| File Size | 5.3 MB | 10.5 MB |
-| Inference Speed | ~8ms | ~6ms |
-| Portability | Python only | C++, Java, mobile, browser |
-| Further Optimization | CUDA | TensorRT, OpenVINO, CoreML |
+Field-by-field mapping, decisions and the R1/R2 status: `docs/integration.md`.
 
 ---
 
-## 📦 Creating Submissions
+## 🛠️ API & Database
 
-Generate competition submission files:
+- **Base URL:** `http://localhost:8000/api/v1` · interactive docs at `/docs` · no auth (MVP), CORS-restricted
+- **Ingest:** `POST /observations` (idempotent via `ingest_id` — replays return 200, never 409), `POST /observations/batch` (per-item results)
+- **Reads:** observations (filters + pagination, page_size ≤ 200), cameras (auto-created as `unregistered`, monotonic `last_seen_at`), vehicles + timestamp-sorted journeys, `GET /observations/{id}/plate-reads` (raw OCR trail)
+- **R6 integration point (provisional):** `PATCH /observations/{id}/vehicle` with `{global_vehicle_id}`
+- **Database:** PostgreSQL 16, SQLAlchemy 2.x, Alembic (`0001_initial` + `0002_r1r2_contract_fields`, additive); naive timestamps assumed IST, stored UTC; plates normalized (uppercase, separators stripped, 4–12 alphanumeric, no rigid regex); JSONB for bboxes/trajectory
+
+Full contract: `docs/api_contract.md` · schema rationale: `docs/database_schema.md`.
+
+---
+
+## ✅ Testing
 
 ```bash
-python create_submission.py
+# Backend (needs the Postgres container up; uses a throwaway nexus_test DB)
+cd backend && pytest -q
+
+# CV-side model/pipeline checks
+python test.bat          # or: .\test.bat  (PowerShell)
 ```
 
-This produces the `NEXUS_Submission/` folder containing:
-- `predictions.json` — Plate bounding boxes for each test image
-- `efficiency.json` — FLOPs, latency, and model size
-- `efficiency_per_image_ms.json` — Per-image inference latency
+The backend suite covers schema validation, DB constraints, service edge
+cases (idempotency races, camera auto-create, monotonic last_seen_at),
+every endpoint over HTTP, fixture round-trips, load/stress (200 concurrent
+POSTs, duplicate-ingest_id race ×50, journey latency, fuzzing, soak) and the
+R1/R2 contract integration (frozen-contract payloads, adapter, plate trail,
+coordinate fallback, backward compatibility). Recorded numbers:
+`docs/integration.md`.
 
-The submission script uses a **3-tier detection strategy**:
-1. Vehicle detection → plate detection in crop
-2. Fallback: plate detection on full image
-3. Fallback: 90° rotation + plate detection
+---
+
+## 🎬 Demo Flow
+
+1. **Start the stack:** Postgres (`docker compose up -d` in `backend/`) →
+   `alembic upgrade head` → `uvicorn app.main:app --reload` →
+   `npm run dev` in `frontend/`.
+2. **Register cameras:** `PATCH /api/v1/cameras/CAM_01` with name/GPS/status.
+3. **Ingest observations:** run the detection/OCR engine (or the dashboard's
+   ingest simulator) and POST the combined NEXUS payload via the adapter —
+   or use `backend/fixtures/dummy_observations.json`.
+4. **Watch the dashboard:** cameras appear with live status; search vehicles
+   by plate; open a vehicle's journey on the GIS map.
+5. **Analytics/alerts (R5):** `python scripts/run_r5_demo.py` for the
+   offline Re-ID/analytics/alerts demo on synthetic crops.
 
 ---
 
 ## 🚀 Deployment
 
-### Deploy to Hugging Face Spaces
+The Streamlit demo deploys to Hugging Face Spaces (front-matter in this file
+is the Space config; `packages.txt` + `requirements.txt` are already set up;
+set `OPENROUTER_API_KEY` as a Space secret for the OCR fallback):
 
 ```bash
-# 1. Install the Hugging Face CLI
-pip install huggingface_hub[cli]
-
-# 2. Login to Hugging Face
-huggingface-cli login
-
-# 3. Create the Space (only first time)
-huggingface-cli repo create NEXUS --type space --space-sdk streamlit
-
-# 4. Add the HF remote
-git remote add hf https://huggingface.co/spaces/Sarthak403/NEXUS
-
-# 5. Push to Hugging Face (triggers auto-deploy)
+git remote add hf https://huggingface.co/spaces/Sarthak403/NEXUS   # once
 git push hf main
 ```
 
-> **Note:** Hugging Face uses `packages.txt` for system-level apt dependencies and `requirements.txt` for Python packages. Both are already configured in this repo.
-
-> **Environment Variables:** Set your `OPENROUTER_API_KEY` in the Space settings → Repository Secrets if you want the GPT-4o fallback to work on HF Spaces.
-
-### Push to GitHub
-
-```bash
-# 1. Initialize Git LFS (if not already done)
-git lfs install
-
-# 2. Add the GitHub remote (first time only)
-git remote add origin https://github.com/SarthakJain350/NEXUS.git
-
-# 3. Stage all changes
-git add .
-
-# 4. Commit
-git commit -m "feat: complete ANPR pipeline with dual OCR + ONNX support"
-
-# 5. Push to GitHub
-git push -u origin main
-```
-
-> **Important:** This repo uses Git LFS for large files (`.pt`, `.onnx`, `.pth`, `.ipynb`, `.jpg`, `.png`, `.pdf`, `.zip`). Make sure Git LFS is installed before pushing.
-
-### Quick Deploy Script (Both)
-
-```bash
-# Push to both GitHub and HF Spaces in one go
-git add .
-git commit -m "update: latest changes"
-git push origin main
-git push hf main
-```
+The backend targets any Docker host (Postgres 16 + uvicorn); the frontend
+builds with `npm run build`. This is a prototype — no production deployment
+is claimed.
 
 ---
 
-## ⚙️ Configuration
+## ⚠️ Current Status & Limitations
 
-### Environment Variables
+Honest state as of 2026-09-12 (SIH MVP/prototype):
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENROUTER_API_KEY` | No | API key for GPT-4o-mini OCR fallback via [OpenRouter](https://openrouter.ai) |
-
-### Model Paths (in `app.py`)
-
-| Constant | Path | Description |
-|----------|------|-------------|
-| `PT_PATH` | `models/best.pt` | Fine-tuned plate detector (PyTorch) |
-| `ONNX_PATH` | `models/best.onnx` | Fine-tuned plate detector (ONNX) |
-| `VMODEL` | `models/yolo11n.pt` | Vehicle detector (COCO pre-trained) |
-
-### Vehicle Classes
-
-The vehicle detector filters for COCO classes `[2, 3, 5, 7]`:
-- `2` — Car
-- `3` — Motorcycle
-- `5` — Bus
-- `7` — Truck
+- **R1 tracking is not delivered yet** — no ByteTrack/track_id producer is in
+  the repo; the backend speaks the frozen contract and provides the adapter
+  so R1 can drop in. The detection/OCR engine itself works (Streamlit demo,
+  99.49% mAP@50 plate detector).
+- **R6 cross-camera fusion is not implemented** — only the provisional API
+  integration point exists (by design, out of scope).
+- Known R2 bug: `r2_anpr/anpr_pipeline.py` imports `clean_plate` but the
+  module defines `clean_plate_text` (flagged to R2's owner).
+- Analytics run on development-scale data; no production-scale or
+  multi-city claims.
+- OCR quality depends on plate visibility; the heuristic R2 confidence score
+  is rescaled to [0,1] by the adapter and kept separate from OCR/detection
+  confidences in the `plate_reads` trail.
 
 ---
 
-## 🔬 Technical Deep Dive
-
-For a comprehensive technical report covering:
-- YOLOv11 architecture (backbone, neck, head)
-- Anchor-free detection mechanism
-- Loss functions (CIoU, BCE, DFL) — with mathematical formulations
-- Training curves analysis (epoch-by-epoch)
-- Learning rate schedule (warmup + cosine decay)
-- IoU, mAP, Precision, Recall — explained in depth
-- ONNX export & edge optimization strategies
-
-👉 **See [`explain.md`](explain.md)** — the full technical report.
-
----
-
-## 🗺️ Future Roadmap
+## 🗺️ Roadmap
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Multi-plate per vehicle | ✅ Done | Supported in current pipeline |
-| ONNX inference | ✅ Done | Selectable from sidebar |
-| GPU acceleration | ✅ Done | Auto CUDA detection |
-| Video inference | ✅ Done | With configurable sample rate |
-| Night vision (CLAHE) | ✅ Done | Toggle in sidebar |
-| GPT-4o OCR fallback | ✅ Done | Via OpenRouter API |
-| Live webcam stream | 🔲 Planned | `cv2.VideoCapture(0)` integration |
-| Plate tracking (ByteTrack) | 🔲 Planned | Cross-frame plate tracking |
-| Database logging | 🔲 Planned | SQLite with timestamps |
-| Alert system | 🔲 Planned | Blocklist/whitelist plate lookup |
-| TensorRT FP16 | 🔲 Planned | 2–3× faster on NVIDIA Jetson |
-| OpenVINO INT8 | 🔲 Planned | Optimized for Intel edge CPUs |
+| Two-stage detection + dual OCR | ✅ Done | ONNX selectable, GPT-4o fallback |
+| Video inference + night vision | ✅ Done | Configurable sample rate, CLAHE |
+| PostgreSQL backend + observations API | ✅ Done | FastAPI, idempotent ingest, journeys, migrations |
+| GIS dashboard | ✅ Done | React + Leaflet against the live API |
+| Re-ID, analytics, alerts | ✅ Done | `reid/`, `analytics/`, offline demo |
+| R1 ByteTrack tracking output → backend | 🔲 In progress | Contract + adapter ready; R1 delivery pending |
+| Cross-camera fusion (R6) | 🔲 Out of scope | API contract preserved |
+| Live webcam stream | 🔲 Planned | `cv2.VideoCapture(0)` |
+| TensorRT FP16 / OpenVINO INT8 | 🔲 Planned | Edge acceleration |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how to get started:
+Team NEXUS works via feature branches → PRs to `main`. Module ownership
+above is respected — coordinate before touching another module's code.
+Backend dependencies stay in `backend/requirements.txt` (never the root
+file); `.env` and secrets are never committed; large weights go through
+Git LFS.
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'feat: add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
+---
 
-### Development Setup
+## 📄 License
 
-```bash
-git clone https://github.com/SarthakJain350/NEXUS.git
-cd deepsight-sapiens
-pip install -r requirements.txt
-python -m pytest tests/       # run tests
-streamlit run app.py          # launch dashboard
-```
-
-## R5 — Re-ID + Analytics + Alerts
-
-R5 is implemented in `reid/` and `analytics/`.
-
-- Visual vehicle appearance Re-ID and similarity scoring
-- Global-ID candidate matching for cross-camera integration
-- Traffic flow analytics
-- Low-confidence, repetition and congestion alerts
-- Unit tests and an offline demo
-
-See `docs/R5_REID_ANALYTICS.md`.
+[MIT](LICENSE) — Team NEXUS, Smart India Hackathon 2026.

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
+from app.repositories import observation_repo
 from app.schemas.common import DEFAULT_PAGE_SIZE, Page
 from app.schemas.observation import (
     IST,
@@ -19,8 +20,10 @@ from app.schemas.observation import (
     ObservationCreate,
     ObservationRead,
 )
+from app.schemas.plate_read import PlateReadRead
 from app.schemas.vehicle import VehicleUpdate
 from app.services import batch_service, observation_service, query_service
+from app.services.exceptions import NotFoundError
 
 router = APIRouter(prefix="/api/v1/observations", tags=["observations"])
 
@@ -40,10 +43,20 @@ def create_observation(
 ) -> JSONResponse:
     """Ingest one observation.
 
+    Accepts the frozen NEXUSVehicle contract names as aliases —
+    `vehicle_class` → vehicle_type, `plate_text` → plate_number,
+    `raw_ocr_text` → raw_plate_text — plus `frame_id`, `vehicle_bbox`,
+    `trajectory`, `plate_bbox`, `plate_confidence`, `ocr_confidence`,
+    `detection_confidence`, `ocr_engine` and `vehicle_crop_reference`.
+    `vehicle_crop` (binary) is ignored; confidences are strictly [0,1]
+    (convert 0–100 scores with `app.integration.r1r2`). Coordinates are
+    optional — the camera row's position is the fallback.
+
     201 when a new record was stored; **200 when an `ingest_id` replay
     returned the existing record** — retries are always a success, never
     a 409 (§6.2). Unknown cameras are auto-created as `unregistered`
-    (§6.3); a plate creates/links a provisional vehicle (§6.4).
+    (§6.3); a plate creates/links a provisional vehicle (§6.4) and its
+    raw OCR trail is preserved in `plate_reads` (C9).
     """
     result = observation_service.ingest(db, payload)
     return JSONResponse(
@@ -91,6 +104,20 @@ def list_observations(
 @router.get("/{observation_id}", response_model=ObservationRead)
 def get_observation(observation_id: int, db: Session = Depends(get_db)):
     return query_service.get_observation(db, observation_id)
+
+
+@router.get("/{observation_id}/plate-reads", response_model=list[PlateReadRead])
+def get_plate_reads(observation_id: int, db: Session = Depends(get_db)):
+    """Raw OCR trail for one observation (R1/R2 integration, C9): the
+    pre-normalization text, separate OCR/detection confidences, plate bbox
+    and the OCR engine tag. Empty list when the observation carried no
+    plate information; 404 when the observation does not exist."""
+    if observation_repo.get_by_id(db, observation_id) is None:
+        raise NotFoundError(f"observation {observation_id} not found")
+    return [
+        PlateReadRead.model_validate(read)
+        for read in observation_repo.plate_reads_for_observation(db, observation_id)
+    ]
 
 
 @router.patch("/{observation_id}/vehicle", response_model=ObservationRead)

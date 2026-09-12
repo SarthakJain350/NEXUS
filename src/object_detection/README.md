@@ -1,3 +1,14 @@
+# ⚠️ NEXUS note (2026-09-12)
+
+This directory contains a **vendored upstream FCOS implementation kept for
+training-time reference only**. It is **not** the active NEXUS vehicle/plate
+detection pipeline — the live system uses Ultralytics YOLOv11 (`app.py`,
+`models/yolo11n.pt` for vehicles, `models/best.pt`/`best.onnx` for plates).
+Everything below this note is the original upstream FCOS documentation,
+preserved as-is.
+
+---
+
 ## FCOS: Fully Convolutional One-Stage Object Detection  
 
 ####  implemented by pytorch1.0  

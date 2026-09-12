@@ -1,8 +1,9 @@
 # NEXUS R3 — Database Schema
 
 PostgreSQL 16, SQLAlchemy 2.x ORM, Alembic migrations. The running schema is
-defined by `backend/alembic/versions/0001_initial.py`; this document explains
-the *why*. Connection: `psycopg` v3 (decision D4), URL from `DATABASE_URL`,
+defined by `backend/alembic/versions/0001_initial.py` +
+`0002_r1r2_contract_fields.py`; this document explains the *why*.
+Connection: `psycopg` v3 (decision D4), URL from `DATABASE_URL`,
 pool `pool_size=10, max_overflow=20, pool_timeout=30s, pool_pre_ping=True`.
 
 ## Entity relationship
@@ -62,10 +63,14 @@ camera; admin/R4 later fills in details and flips to `active`.
 | `track_id` | int | **local** tracker ID — resets per camera session, never a global key (see "track_id reuse" below) |
 | `plate_number` | varchar(16), nullable, indexed | normalized (uppercase, separators stripped) |
 | `timestamp` | timestamptz, indexed | capture time, stored UTC (naive input assumed IST, D10) |
-| `vehicle_type` | varchar(16) | allow-list + `other` fallback (D7) |
-| `confidence` | float | [0,1], finite |
-| `latitude`, `longitude` | float | range-checked at ingest |
+| `vehicle_type` | varchar(16) | allow-list + `other` fallback (D7); frozen-contract `vehicle_class` maps here |
+| `confidence` | float | [0,1], finite; falls back to `plate_confidence` when the producer sends no detection confidence (C3) |
+| `latitude`, `longitude` | float, **nullable** (migration 0002, C7) | payload → camera row → null; range-checked when present |
 | `ingest_id` | varchar(64), **nullable-unique**, indexed | idempotency key (§6.2) |
+| `frame_id` | varchar(64), nullable (0002) | opaque per-frame ML identifier; int input stored as string (C5) |
+| `vehicle_bbox` | JSONB, nullable (0002) | `[x1, y1, x2, y2]` — native JSON, not a serialized string (C6) |
+| `trajectory` | JSONB, nullable (0002) | opaque R1 trajectory array; the derivable journey (`GET /vehicles/{id}/journey`) stays authoritative |
+| `vehicle_crop_reference` | varchar(512), nullable (0002) | path/URL to the crop artifact — binary crops never stored (C4) |
 | `created_at` | timestamptz | server receipt time, kept separate from `timestamp` so clock skew stays diagnosable (§6.6) |
 
 **Indexes:**
@@ -79,21 +84,27 @@ camera; admin/R4 later fills in details and flips to `active`.
 | `ix_observations_plate_number` | plate search |
 | `ix_observations_vehicle_id` | vehicle → observations join |
 
-### `plate_reads` — raw OCR trail (decision D5)
+### `plate_reads` — raw OCR trail (decision D5, populated since the R1/R2 integration)
 
 Keeps the unnormalized OCR output next to the normalized plate for later
-OCR-quality analysis. Created "to be safe"; **not currently written by the
-ingest path** — the API contract carries only the normalized plate. When R1/R2
-deliver real payloads with raw `plate_text` + `plate_confidence`, the ingest
-service will populate this table (Phase 8.1 decides the final shape).
+OCR-quality analysis. **Written on every ingest that carries plate
+information** (plate, raw text, plate confidence or plate bbox — decision C9):
+one row per fresh observation insert; `ingest_id` replays return before the
+trail is touched, so replays never double-write. Unreadable attempts are
+preserved too (`plate_number_normalized` null, `plate_number_raw` holding what
+the OCR emitted). Served by `GET /observations/{id}/plate-reads`.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | int PK | |
 | `observation_id` | int FK → observations, indexed | |
-| `plate_number_raw` | varchar(64) | exactly what the OCR emitted |
-| `plate_number_normalized` | varchar(16), nullable | post-normalization |
-| `confidence` | float, nullable | OCR confidence, distinct from the observation's detection confidence |
+| `plate_number_raw` | varchar(64) | exactly what the OCR emitted (pre-normalization) |
+| `plate_number_normalized` | varchar(16), nullable | post-normalization; null = unreadable attempt |
+| `confidence` | float, nullable | the producer's read-level `plate_confidence` |
+| `ocr_confidence` | float, nullable (0002) | OCR-engine confidence, kept separate (C3) |
+| `detection_confidence` | float, nullable (0002) | plate-detection confidence, kept separate (C3) |
+| `plate_bbox` | JSONB, nullable (0002) | `[x1, y1, x2, y2]` |
+| `source` | varchar(64), nullable (0002) | OCR engine tag, e.g. `fast-plate-ocr`, `pytesseract` |
 | `timestamp` | timestamptz | read time |
 
 ## Design decisions worth remembering
@@ -123,15 +134,26 @@ with the normalized form only. `up32 ab1234` and `UP32AB1234` are one vehicle.
 
 ## Migrations
 
-Single initial migration `0001_initial` (Plan §11) — all tables + all indexes
-from day one. Workflow:
+- `0001_initial` (Plan §11) — all tables + all indexes from day one.
+- `0002_r1r2_contract_fields` (2026-09-12) — **additive only**: the frozen
+  NEXUSVehicle contract columns (observations: `frame_id`, `vehicle_bbox`,
+  `trajectory`, `vehicle_crop_reference`; plate_reads: `plate_bbox`,
+  `ocr_confidence`, `detection_confidence`, `source`) plus
+  `observations.latitude/longitude` → nullable (C7). No existing column is
+  dropped or retyped; existing migrations are never modified.
+
+Workflow:
 
 ```bash
 cd backend
 alembic upgrade head        # apply everything
-alembic downgrade -1        # roll back the initial migration (drops all tables)
+alembic downgrade -1        # roll back 0002 (drops the new columns)
 alembic upgrade head        # and back up — verified clean both directions
 ```
+
+Note: `alembic downgrade -1` from a database containing null-coordinate rows
+will fail the `NOT NULL` restore — expected, since pre-0002 rows cannot
+represent missing GPS; clear or backfill those rows first.
 
 Test databases (`nexus_test`) are created via `metadata.create_all` for
 isolation; **the deployment path is always `alembic upgrade head`**.
