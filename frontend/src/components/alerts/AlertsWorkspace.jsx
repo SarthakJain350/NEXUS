@@ -75,7 +75,7 @@ export default function AlertsWorkspace({
       }}>
         <Info size={15} color="var(--accent-amber)" style={{ flexShrink: 0 }} />
         <span>
-          Alerts are synthesized on the frontend from live observations according to heuristic rules. The system does not pretend alerts are persisted to an invented backend endpoint.
+          Alerts are synthesized on the frontend from live observations according to heuristic rules. Acknowledge/resolve decisions are persisted in this browser only — there is no backend alert endpoint (MVP decision D4).
         </span>
       </div>
 

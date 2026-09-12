@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Sparkles, Car, Camera, Clock, Upload, ArrowRight, ShieldCheck, Info, ExternalLink, RefreshCw } from 'lucide-react';
 
+// Cross-camera Re-ID studio. Candidates are the probe vehicle's REAL
+// observations as associated by the backend's plate-linking identity
+// mechanism (MVP fusion approach, decision D3). No embedding scores are
+// fabricated: the visual feature matcher (VehicleReIdentifier, handcrafted
+// HSV/Sobel features + cosine similarity) ships as the Python reference
+// baseline in reid/ and is designated R6 future work.
 export default function ReidWorkspace({
   vehicles = [],
   cameras = [],
@@ -9,70 +15,40 @@ export default function ReidWorkspace({
   onNavigateTab
 }) {
   const [selectedProbe, setSelectedProbe] = useState(vehicles[0] || null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Gallery candidates derived from observations
-  const candidateObservations = observations.filter(o => o.plate_number).slice(0, 8);
+  // All real observations of the probe vehicle (vehicle_id linkage)
+  const probeObservations = useMemo(() => {
+    if (!selectedProbe) return [];
+    return observations.filter(o => o.vehicle_id === selectedProbe.id);
+  }, [observations, selectedProbe]);
 
-  // SIMULATED Re-ID matches (hardcoded similarity scores): the Python
-  // VehicleReIdentifier (reid/vehicle_reid.py) is the reference algorithm —
-  // these UI numbers illustrate the matching concept until R6 fusion feeds
-  // real cross-camera scores. Do not present as live model output.
-  const reidMatches = selectedProbe
-    ? [
-        {
-          id: 'REID-M1',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
-          plate_number: selectedProbe.plate_number_best_guess,
-          vehicle_type: selectedProbe.vehicle_type,
-          similarity: 0.984,
-          camera_id: 'CAM_06',
-          camera_name: 'Expressway Khalapur Plaza',
-          timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-          vector_distance: '0.016'
-        },
-        {
-          id: 'REID-M2',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
-          plate_number: selectedProbe.plate_number_best_guess,
-          vehicle_type: selectedProbe.vehicle_type,
-          similarity: 0.932,
-          camera_id: 'CAM_04',
-          camera_name: 'Eastern Freeway Chembur Exit',
-          timestamp: new Date(Date.now() - 35 * 60000).toISOString(),
-          vector_distance: '0.068'
-        },
-        {
-          id: 'REID-M3',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
-          plate_number: selectedProbe.plate_number_best_guess,
-          vehicle_type: selectedProbe.vehicle_type,
-          similarity: 0.887,
-          camera_id: 'CAM_02',
-          camera_name: 'Worli Seaface South Junction',
-          timestamp: new Date(Date.now() - 65 * 60000).toISOString(),
-          vector_distance: '0.113'
-        },
-        {
-          id: 'REID-M4',
-          global_vehicle_id: 'NEXUS_V00005',
-          plate_number: 'MH04XX1199',
-          vehicle_type: selectedProbe.vehicle_type,
-          similarity: 0.742,
-          camera_id: 'CAM_01',
-          camera_name: 'Bandra-Worli Sea Link North',
-          timestamp: new Date(Date.now() - 110 * 60000).toISOString(),
-          vector_distance: '0.258'
-        }
-      ]
-    : [];
+  // Gallery candidates: the highest-confidence observation at each camera,
+  // most recent sighting first — a real cross-camera view of one identity.
+  const sightings = useMemo(() => {
+    const best = new Map();
+    probeObservations.forEach(o => {
+      const prev = best.get(o.camera_id);
+      if (!prev || (o.confidence || 0) > (prev.confidence || 0)) {
+        best.set(o.camera_id, o);
+      }
+    });
+    return [...best.values()].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [probeObservations]);
 
-  const handleSimulateReid = (probe) => {
+  const cameraName = (cameraId) =>
+    cameras.find(c => c.camera_id === cameraId)?.name || `Camera ${cameraId}`;
+
+  const firstSeen = probeObservations.length > 0
+    ? probeObservations.reduce((min, o) => (new Date(o.timestamp) < min ? new Date(o.timestamp) : min), new Date(probeObservations[0].timestamp))
+    : null;
+  const lastSeen = probeObservations.length > 0
+    ? probeObservations.reduce((max, o) => (new Date(o.timestamp) > max ? new Date(o.timestamp) : max), new Date(probeObservations[0].timestamp))
+    : null;
+
+  const handleSelectProbe = (probe) => {
     setSelectedProbe(probe);
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-    }, 400);
   };
 
   return (
@@ -86,11 +62,11 @@ export default function ReidWorkspace({
               <span>Cross-Camera Re-ID Intelligence Studio</span>
             </h2>
             <span className="client-derived-tag" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', borderColor: 'rgba(168, 85, 247, 0.4)' }}>
-              ● RE-ID DEMO // ANALYTICS SIMULATION
+              ● PLATE-LINKED ASSOCIATION // R6 VIEW
             </span>
           </div>
           <p style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-            Deep metric visual feature re-identification • Cosine embedding similarity matching
+            Cross-camera identity via plate-link association • Visual Re-ID baseline: <code className="font-mono">reid/vehicle_reid.py</code> (reference)
           </p>
         </div>
       </div>
@@ -109,11 +85,11 @@ export default function ReidWorkspace({
       }}>
         <Info size={16} color="var(--accent-purple)" style={{ flexShrink: 0 }} />
         <span>
-          <b>System Notice:</b> The NEXUS codebase contains the standalone <code className="font-mono" style={{ color: '#c084fc' }}>VehicleReIdentifier</code> and feature extraction algorithms in Python. This studio provides a tactical demonstration of feature vector matching without inventing fake production backend endpoints.
+          <b>System Notice:</b> Candidates below are this vehicle's <b>real cross-camera observations</b>, associated by the backend's plate-linking identity mechanism (the MVP fusion approach). The visual feature matcher (<code className="font-mono" style={{ color: '#c084fc' }}>VehicleReIdentifier</code> — handcrafted HSV/Sobel embeddings + cosine similarity) ships as the Python reference baseline in <code className="font-mono" style={{ color: '#c084fc' }}>reid/</code> and is R6 future work; no embedding similarity scores are fabricated here.
         </span>
       </div>
 
-      {/* Main Studio Grid: Probe Selector (Left) + Cosine Matches (Right) */}
+      {/* Main Studio Grid: Probe Selector (Left) + Cross-Camera Sightings (Right) */}
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '16px', flex: 1, minHeight: '0' }}>
         {/* Left: Query Vehicle Selection */}
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'rgba(7, 10, 17, 0.6)' }}>
@@ -127,7 +103,7 @@ export default function ReidWorkspace({
               return (
                 <div
                   key={veh.id}
-                  onClick={() => handleSimulateReid(veh)}
+                  onClick={() => handleSelectProbe(veh)}
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
@@ -146,7 +122,7 @@ export default function ReidWorkspace({
                       <span>{veh.plate_number_best_guess}</span>
                     </div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                      ID: <b style={{ color: 'var(--accent-purple)' }}>{veh.global_vehicle_id || 'NEXUS_V00001'}</b>
+                      ID: <b style={{ color: 'var(--accent-purple)' }}>{veh.global_vehicle_id || 'Pending fusion'}</b>
                       {' • '}
                       <span style={{ textTransform: 'uppercase' }}>{veh.vehicle_type}</span>
                     </div>
@@ -163,7 +139,7 @@ export default function ReidWorkspace({
             })}
           </div>
 
-          {/* Active Probe Signature Card */}
+          {/* Probe Summary — real derived data, no synthetic feature vectors */}
           {selectedProbe && (
             <div style={{
               padding: '12px',
@@ -173,24 +149,31 @@ export default function ReidWorkspace({
               fontSize: '0.72rem'
             }}>
               <div style={{ color: 'var(--accent-purple)', fontWeight: 700, marginBottom: '4px' }}>
-                512-D FEATURE SIGNATURE
+                PROBE SUMMARY
               </div>
-              <div className="font-mono" style={{ color: 'var(--text-dim)', wordBreak: 'break-all', fontSize: '0.62rem' }}>
-                [0.042, -0.198, 0.812, 0.009, -0.344, 0.551, 0.129, -0.088, 0.432, ...]
+              <div style={{ color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div>Observations: <b style={{ color: '#fff' }}>{probeObservations.length}</b> across <b style={{ color: '#fff' }}>{sightings.length}</b> camera{sightings.length === 1 ? '' : 's'}</div>
+                {firstSeen && (
+                  <div>First seen: <span className="font-mono">{firstSeen.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span></div>
+                )}
+                {lastSeen && (
+                  <div>Last seen: <span className="font-mono">{lastSeen.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span></div>
+                )}
+                <div>Association basis: <b style={{ color: '#c084fc' }}>PLATE LINK</b></div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Right: Cosine Similarity Ranked Results */}
+        {/* Right: Cross-Camera Sightings, ranked by recency */}
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'rgba(7, 10, 17, 0.6)', overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>
-                FEATURE SIMILARITY RANKED CANDIDATES
+                CROSS-CAMERA SIGHTINGS (PLATE-ASSOCIATED)
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                Ranked by cosine distance: <code className="font-mono">cos_sim(v_probe, v_gallery)</code>
+                Best observation per camera, most recent first — same identity, multiple vantage points
               </div>
             </div>
 
@@ -203,18 +186,25 @@ export default function ReidWorkspace({
 
           {/* Results List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {reidMatches.map((match, idx) => {
-              const simPct = (match.similarity * 100).toFixed(1);
-              const isMatch = match.similarity >= 0.85;
+            {sightings.length === 0 && (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+                {selectedProbe
+                  ? 'No observations recorded for this vehicle yet — ingest or seed data first.'
+                  : 'Select a query probe vehicle to see its cross-camera sightings.'}
+              </div>
+            )}
+            {sightings.map((obs, idx) => {
+              const confPct = ((obs.confidence || 0) * 100).toFixed(1);
+              const isVerified = (obs.confidence || 0) >= 0.75;
 
               return (
                 <div
-                  key={match.id}
+                  key={obs.id}
                   style={{
                     padding: '14px 16px',
                     borderRadius: '8px',
                     background: 'rgba(255, 255, 255, 0.03)',
-                    border: isMatch ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid var(--border-subtle)',
+                    border: isVerified ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -227,8 +217,8 @@ export default function ReidWorkspace({
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      background: isMatch ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                      color: isMatch ? '#c084fc' : 'var(--text-dim)',
+                      background: isVerified ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isVerified ? '#c084fc' : 'var(--text-dim)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -243,51 +233,52 @@ export default function ReidWorkspace({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div className="plate-badge" style={{ fontSize: '0.78rem', padding: '2px 6px' }}>
                           <span className="ind-tag">IND</span>
-                          <span>{match.plate_number}</span>
+                          <span>{obs.plate_number || 'UNREADABLE'}</span>
                         </div>
                         <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--accent-purple)', fontWeight: 700 }}>
-                          {match.global_vehicle_id}
+                          {obs.global_vehicle_id || 'Pending fusion'}
                         </span>
                         <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          {match.vehicle_type}
+                          {obs.vehicle_type}
+                        </span>
+                        <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', fontWeight: 700 }}>
+                          PLATE LINK
                         </span>
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                        <span>Camera: <b style={{ color: 'var(--accent-cyan)' }}>{match.camera_id}</b> ({match.camera_name})</span>
+                        <span>Camera: <b style={{ color: 'var(--accent-cyan)' }}>{obs.camera_id}</b> ({cameraName(obs.camera_id)})</span>
                         <span>•</span>
-                        <span>Seen: {new Date(match.timestamp).toLocaleTimeString()}</span>
+                        <span>Seen: {new Date(obs.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Similarity Gauge */}
+                  {/* Capture Confidence Gauge — real detection confidence */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-                        Cosine Similarity
+                        Capture Confidence
                       </div>
-                      <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: isMatch ? '#c084fc' : 'var(--text-dim)' }}>
-                        {simPct}%
+                      <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: isVerified ? '#c084fc' : 'var(--text-dim)' }}>
+                        {confPct}%
                       </div>
                       <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>
-                        Distance: {match.vector_distance}
+                        Basis: plate-link association
                       </div>
                     </div>
 
-                    {isMatch && (
-                      <button
-                        onClick={() => {
-                          onSelectVehicle?.(selectedProbe);
-                          onNavigateTab('tracking');
-                        }}
-                        className="btn btn-outline"
-                        title="View trajectory in GIS"
-                        style={{ padding: '6px 10px', fontSize: '0.72rem' }}
-                      >
-                        <ExternalLink size={12} /> Route
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        onSelectVehicle?.(selectedProbe);
+                        onNavigateTab('tracking');
+                      }}
+                      className="btn btn-outline"
+                      title="View trajectory in GIS"
+                      style={{ padding: '6px 10px', fontSize: '0.72rem' }}
+                    >
+                      <ExternalLink size={12} /> Route
+                    </button>
                   </div>
                 </div>
               );

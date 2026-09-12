@@ -90,7 +90,9 @@ Annotated video is saved to `runs/tracking/live_ingest_output.mp4`.
 6. **Analytics** — traffic level, vehicle-type split, camera load
    (client-computed, D4).
 7. **Alerts** — congestion/low-confidence alerts derived from live data.
-8. **Re-ID studio** — clearly labeled simulation of the reference matcher.
+8. **Re-ID studio** — the probe vehicle's real cross-camera sightings
+   (plate-linked association, D3). The visual matcher (`reid/`) is the
+   Python reference baseline — say so if asked.
 9. **System health** — backend/DB status, camera fleet.
 
 ## 5. Backup / fallbacks
@@ -120,6 +122,7 @@ Annotated video is saved to `runs/tracking/live_ingest_output.mp4`.
   OCR (Fast-Plate-OCR), ByteTrack tracking, idempotent PostgreSQL ingest,
   journeys, dashboard, client-side analytics.
 - Simulated/seeded: cross-camera global IDs (`NEXUS_V#####` assigned in
-  `seed_data.py`), Re-ID studio scores. **Not claimed as a trained Re-ID
-  model** — `reid/` is the reference baseline; CityFlowV2 is the designated
-  future validation dataset (D8).
+  `seed_data.py`). The Re-ID studio shows **real** plate-linked cross-camera
+  sightings (no fabricated scores); the visual matcher (`reid/`) is the
+  reference baseline — **not claimed as a trained Re-ID model**; CityFlowV2
+  is the designated future validation dataset (D8).
