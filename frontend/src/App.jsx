@@ -27,6 +27,20 @@ import SettingsWorkspace from './components/system/SettingsWorkspace';
 import { api } from './services/api';
 import { computeAnalytics, generateClientAlerts } from './services/analyticsBridge';
 
+// Alert ack/resolve decisions persist in this browser (localStorage) so they
+// survive page reloads. Client-side only — alerts have no backend endpoint
+// by MVP decision D4. Best-effort: storage failures (private mode, disabled)
+// degrade to the previous in-memory behavior.
+const ALERT_STATUS_STORAGE_KEY = 'nexus_alert_status_v1';
+
+function loadPersistedAlertStatuses() {
+  try {
+    return JSON.parse(localStorage.getItem(ALERT_STATUS_STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
 export default function App() {
   // Navigation active tab: defaults to overview command center
   const [activeTab, setActiveTab] = useState('overview');
@@ -77,8 +91,10 @@ export default function App() {
       // Generate client-derived alerts
       const generatedAlerts = generateClientAlerts(obsData || [], camData || [], vehData || []);
       setClientAlerts(prev => {
-        // Preserve acknowledged/resolved states
-        const stateMap = {};
+        // Preserve acknowledged/resolved states across polls (prev) and
+        // reloads (persisted map). prev wins: it includes this session's
+        // newer decisions on top of what was restored from storage.
+        const stateMap = { ...loadPersistedAlertStatuses() };
         prev.forEach(a => { stateMap[a.id] = a.status; });
         return generatedAlerts.map(a => ({
           ...a,
@@ -160,9 +176,16 @@ export default function App() {
   };
 
   const handleUpdateAlertStatus = (alertId, newStatus) => {
-    setClientAlerts(prev =>
-      prev.map(a => (a.id === alertId ? { ...a, status: newStatus } : a))
-    );
+    setClientAlerts(prev => {
+      const next = prev.map(a => (a.id === alertId ? { ...a, status: newStatus } : a));
+      // Persist decisions (non-'new' only) so they survive reloads.
+      try {
+        const map = {};
+        next.forEach(a => { if (a.status !== 'new') map[a.id] = a.status; });
+        localStorage.setItem(ALERT_STATUS_STORAGE_KEY, JSON.stringify(map));
+      } catch { /* storage unavailable — non-fatal */ }
+      return next;
+    });
   };
 
   // Cross-Navigation dispatcher
