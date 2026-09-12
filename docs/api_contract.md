@@ -391,6 +391,47 @@ known vehicle with no observations returns a valid empty page.
 
 ---
 
+### Videos
+
+`POST /api/v1/videos/upload` — run the existing R1+R2 ANPR pipeline (YOLO
+vehicle detection + ByteTrack, ONNX plate detection, Fast-Plate-OCR) on a
+**locally uploaded video** and ingest every detection.
+
+- **Request:** multipart form, field `file` — `.mp4/.avi/.mov/.mkv/.webm`,
+  max 200 MB.
+- **No camera assignment:** detections land on the reserved
+  `LOCAL_UPLOAD` source node (auto-created `unregistered`, no GPS — C7
+  coordinate-less, never plotted on the map). The user never picks a camera.
+- **Timestamps:** each detection keeps the real-world UTC time it was
+  *processed* (stamped by the pipeline, not the video frame time).
+- **Blocking:** the endpoint runs the pipeline synchronously (typically
+  30–90 s for a demo clip; capped at `--max-frames 200 --stride 2`).
+- **Idempotent (§6.2):** re-uploading identical footage replays the same
+  `ingest_id`s — the response then reports zero *new* detections and the
+  original events keep their original timestamps.
+- **Pipeline execution:** the CV stack (torch/ultralytics) stays in the
+  root env (Plan §0); the backend runs
+  `scripts/run_video_live_ingest.py` via the interpreter configured as
+  `CV_PYTHON` (default `python`). Requires `python-multipart` in the
+  backend venv.
+
+```json
+{
+  "status": "complete",
+  "filename": "road_clip.mp4",
+  "source": "LOCAL_UPLOAD",
+  "elapsed_seconds": 31.4,
+  "detection_count": 2,
+  "detections": [ { "...": "ObservationRead, newest first" } ]
+}
+```
+
+Errors use the standard envelope: `400` (bad type / oversize / nameless
+file), `500` (CV interpreter missing, pipeline crash — detail carries the
+script log tail, full log at `runs/tracking/uploads/upload_*.log`).
+
+---
+
 ## Consumer cheat-sheet
 
 | Consumer | What to use |
@@ -399,3 +440,4 @@ known vehicle with no observations returns a valid empty page.
 | **R4** | `GET /cameras` (+ PATCH to register them), `GET /observations?camera_id=`, `GET /vehicles?plate_number=`, `GET /vehicles/{id}/journey` for map + history — skip null-coordinate points (C7) |
 | **R5** | `GET /observations` with `start`/`end`/`vehicle_type` filters; `GET /cameras` for liveness via `last_seen_at`; `GET /observations/{id}/plate-reads` for OCR-quality analysis |
 | **R6** | `PATCH /observations/{id}/vehicle` to write fusion results; `GET /vehicles?global_vehicle_id=` to check existing identities |
+| **R4 upload UI** | `POST /videos/upload` (local clip → ANPR; results also arrive via `GET /observations?camera_id=LOCAL_UPLOAD`); `GET /observations/{id}/plate-reads` for the OCR confidence column |

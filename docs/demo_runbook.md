@@ -17,7 +17,8 @@ ANPR reference prototype only.
   - **CV env** (root): `pip install -r requirements.txt` — needs
     `ultralytics`, `fast-plate-ocr`, `opencv`, `torch`
   - **Backend env**: `cd backend && python -m venv .venv && .venv\Scripts\activate
-    && pip install -r requirements.txt`
+    && pip install -r requirements.txt` (includes `python-multipart`, needed
+    by the video-upload feature)
 - Node 18+ for the frontend (`cd frontend && npm install`)
 
 ## 1. Start the stack (≈2 min)
