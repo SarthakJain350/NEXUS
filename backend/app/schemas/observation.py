@@ -450,6 +450,9 @@ class ObservationRead(BaseModel):
 
     id: int
     vehicle_id: int | None
+    # R6 fusion identity of the linked vehicle (via the ORM property);
+    # null when the observation is not yet fused to a global vehicle.
+    global_vehicle_id: str | None = None
     camera_id: str
     track_id: int
     plate_number: str | None

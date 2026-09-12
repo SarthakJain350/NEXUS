@@ -182,6 +182,7 @@ Response body (both 200 and 201):
 {
   "id": 42,
   "vehicle_id": 7,
+  "global_vehicle_id": "NEXUS_V00077",
   "camera_id": "CAM_01",
   "track_id": 17,
   "plate_number": "UP32AB1234",
@@ -198,6 +199,10 @@ Response body (both 200 and 201):
   "created_at": "2026-09-12T04:15:33.221403Z"
 }
 ```
+
+`global_vehicle_id` (added 2026-09-12 for R4/R5 consumers) is the linked
+vehicle's R6 identity — `null` until fusion assigns one. Canonical format:
+`NEXUS_V#####` (decision D6).
 
 Ingest behavior (all in the service layer, identical for single and batch):
 
@@ -292,11 +297,12 @@ GET /api/v1/observations/42/plate-reads
 
 **Provisional body per decision D6** — `{global_vehicle_id}` only — until R6
 confirms its real fusion-output shape (Phase 8.3). `extra="forbid"`: unknown
-fields are rejected here, unlike observation ingest.
+fields are rejected here, unlike observation ingest. Canonical ID format:
+`NEXUS_V#####` (decision D6, 2026-09-12).
 
 ```json
 PATCH /api/v1/observations/42/vehicle
-{"global_vehicle_id": "GVID-9f3a2c"}
+{"global_vehicle_id": "NEXUS_V00077"}
 ```
 
 Links the observation to the vehicle carrying that global identity, creating

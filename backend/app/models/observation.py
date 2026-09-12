@@ -78,3 +78,12 @@ class Observation(Base):
             f"<Observation id={self.id} camera={self.camera_id} "
             f"track={self.track_id} at {self.timestamp}>"
         )
+
+    @property
+    def global_vehicle_id(self) -> str | None:
+        """The linked vehicle's global identity (R6), or None when unfused.
+
+        Exposed on ObservationRead so R4/R5 consumers can group observations
+        by global vehicle without an extra join on their side.
+        """
+        return self.vehicle.global_vehicle_id if self.vehicle else None
