@@ -26,6 +26,7 @@ import SettingsWorkspace from './components/system/SettingsWorkspace';
 
 import { api } from './services/api';
 import { computeAnalytics, generateClientAlerts } from './services/analyticsBridge';
+import { getLatestWaypoint } from './services/journeyFocus';
 
 // Alert ack/resolve decisions persist in this browser (localStorage) so they
 // survive page reloads. Client-side only — alerts have no backend endpoint
@@ -153,8 +154,8 @@ export default function App() {
       setJourneyPoints(journey || []);
       // Journey is timestamp-ascending (backend §6.5): focus the vehicle's
       // LATEST waypoint that carries coordinates (lat/lon nullable per C7).
-      const latest = [...(journey || [])].reverse().find(p => p.latitude && p.longitude);
-      setFocusCoords(latest ? [latest.latitude, latest.longitude] : null);
+      // Shared helper — same source of truth as TacticalMap's fallback focus.
+      setFocusCoords(getLatestWaypoint(journey || []));
     } catch (e) {
       if (seq === selectionSeq.current) {
         console.error('Failed to fetch vehicle journey', e);
