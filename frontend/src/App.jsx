@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Header from './components/layout/Header';
 import Navigation from './components/layout/Navigation';
 import StatsRibbon from './components/layout/StatsRibbon';
@@ -129,17 +129,36 @@ export default function App() {
     loadData();
   };
 
+  // Monotonic selection sequence: only the most recent vehicle selection may
+  // commit its journey/focus. A slow earlier fetch resolving late would
+  // otherwise overwrite the newer selection's map data (stale-focus jump).
+  const selectionSeq = useRef(0);
+
   const handleSelectVehicle = async (vehicle) => {
+    const seq = ++selectionSeq.current;
+    const isSameVehicle = selectedVehicle && selectedVehicle.id === vehicle.id;
     setSelectedVehicle(vehicle);
+    // Drop the previous vehicle's trajectory immediately: while the new
+    // journey is being fetched, the map must not render — or focus — the
+    // OLD vehicle's polyline/focus, which reads as a jump to another
+    // (often the first/oldest) camera. Skipped for same-vehicle refreshes
+    // (post-ingest reload) to avoid a needless polyline flicker.
+    if (!isSameVehicle) {
+      setJourneyPoints([]);
+      setFocusCoords(null);
+    }
     try {
       const journey = await api.getVehicleJourney(vehicle.id);
+      if (seq !== selectionSeq.current) return; // a newer selection won
       setJourneyPoints(journey || []);
       // Journey is timestamp-ascending (backend §6.5): focus the vehicle's
       // LATEST waypoint that carries coordinates (lat/lon nullable per C7).
       const latest = [...(journey || [])].reverse().find(p => p.latitude && p.longitude);
       setFocusCoords(latest ? [latest.latitude, latest.longitude] : null);
     } catch (e) {
-      console.error('Failed to fetch vehicle journey', e);
+      if (seq === selectionSeq.current) {
+        console.error('Failed to fetch vehicle journey', e);
+      }
     }
   };
 

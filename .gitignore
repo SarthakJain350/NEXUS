@@ -113,8 +113,10 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments (.env at any depth incl. frontend/; .env.example stays tracked)
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
