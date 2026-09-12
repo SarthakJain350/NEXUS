@@ -126,9 +126,9 @@ see [R1/R2 → R3 Data Contract](#-r1r2--r3-data-contract) and
 
 | Module | Owner | Code | Status |
 |---|---|---|---|
-| **R1** — vehicle detection + per-camera tracking | R1 (HARSHIT) | `src/tracking/r1_tracker.py` + engine in `app.py` | ✅ ByteTrack tracker delivered (lifecycle, trajectories, crops); COCO YOLOv11n detector for the MVP per decision D1 |
+| **R1** — vehicle detection + per-camera tracking | R1 (Rohan) | `src/tracking/r1_tracker.py` + engine in `app.py` | ✅ ByteTrack tracker delivered (lifecycle, trajectories, crops); COCO YOLOv11n detector for the MVP per decision D1 |
 | **R2** — ANPR + OCR | R2 (khushi) | engine core in `app.py` + `scripts/run_video_live_ingest.py` | ✅ plate detection + Fast-Plate-OCR = **official R2** (decision D2); `r2_anpr/` is the legacy/reference implementation |
-| **R3** — backend + PostgreSQL | R3 (Sarthak) | `backend/` | ✅ shipped: ingest, idempotency, journeys, plate_reads trail, R1/R2 contract integration |
+| **R3** — backend + PostgreSQL | R3 (Sarthak Jain) | `backend/` | ✅ shipped: ingest, idempotency, journeys, plate_reads trail, R1/R2 contract integration |
 | **R4** — frontend + GIS dashboard | R4 (Rushil) | `frontend/` (React + Vite + Leaflet) | ✅ dashboard live against the backend API — **primary SIH demo UI** (D10) |
 | **R5** — Re-ID + analytics + alerts | R5 (Harshit) | `reid/`, `analytics/` | ✅ analytics, alerts, offline demo (MVP dashboard computes its own client-side analytics, D4) |
 | **R6** — cross-camera fusion | R6 | — (API contract only) | ⛔ out of MVP scope; provisional integration point in R3 (`PATCH /observations/{id}/vehicle`) |

@@ -36,35 +36,53 @@
 
 ---
 
-## Harshit — R1 (tracking) + R5 (Re-ID/analytics)
+## Rohan — R1 (detection + tracking)
 
 **What changed in your area since you last looked:**
-- R1 tracker is fully in the demo path: `src/tracking/r1_tracker.py` runs
+- Your tracker is fully in the demo path: `src/tracking/r1_tracker.py` runs
   inside `scripts/run_video_live_ingest.py`, which POSTs observations to the
   backend live (idempotent — replays return 200, not duplicates).
 - Live ingest now sends the full contract: `trajectory`,
   `plate_confidence`, `detection_confidence`, `ocr_confidence` — verified
   against the backend schema by `backend/tests/test_live_ingest_contract.py`.
-- New docs for you: `src/tracking/README.md` (tracker usage/params) and
-  `docs/R5_REID_ANALYTICS.md` (has an honest status banner: R5 is the
-  offline/reference layer, not wired into the runtime — by decision D4).
+- New doc for you: `src/tracking/README.md` (tracker usage/params/tests).
 
 **Review before the viva (your defense surface):**
 - ByteTrack's two-stage association (high/low-score) and why it survives
   occlusion; the active/lost/removed lifecycle.
+- The D1 framing: the demo detector is COCO `yolo11n.pt` — say so plainly;
+  fine-tuning on the Indian Road subset (autorickshaw class) is future work.
+- Your tests: `python -m pytest tests/test_r1_tracking.py -q`
+  (7 tests, no GPU needed).
+
+**Not before SIH (decided):** no custom vehicle detector training (D1),
+no MOTA/IDF1 evaluation. If asked "what's next": fine-tune on the Indian
+Road subset for autorickshaw, evaluation metrics, CityFlowV2 as the
+multi-camera validation dataset.
+
+---
+
+## Harshit — R5 (Re-ID/analytics/alerts)
+
+**What changed in your area since you last looked:**
+- `docs/R5_REID_ANALYTICS.md` now carries an honest status banner: R5 is
+  the offline/reference layer, not wired into the runtime — by decision D4
+  (the dashboard computes its own client-side analytics; the split is
+  documented in the READMEs).
+
+**Review before the viva (your defense surface):**
 - Re-ID is **handcrafted features** (HSV hists, RGB stats, Sobel edges),
   cosine similarity, 0.78 threshold — a *baseline*, not learned embeddings.
   Why: no large Indian-vehicle re-id dataset in scope; the API is swappable.
 - The D3 framing: plate linking is the reliable association today; Re-ID is
   the intended fallback mechanism, shown offline via
   `python scripts/run_r5_demo.py`.
-- Your tests: `python -m pytest tests/test_r1_tracking.py tests/test_r5.py -q`
-  (12 tests, no GPU needed).
+- Your tests: `python -m pytest tests/test_r5.py -q` (5 tests, no GPU needed).
 
-**Not before SIH (decided):** no custom vehicle detector training (D1), no
-real fusion engine (D3), no backend analytics endpoints (D4). If asked
-"what's next": fine-tune on the Indian Road subset for autorickshaw, real
-R6 fusion with temporal constraints, CityFlowV2 as the validation dataset.
+**Not before SIH (decided):** no real fusion engine (D3), no backend
+analytics endpoints (D4), no blacklist/watchlist matching (P3). If asked
+"what's next": real R6 fusion with temporal constraints, learned
+embeddings, OD-matrix analytics.
 
 ---
 
