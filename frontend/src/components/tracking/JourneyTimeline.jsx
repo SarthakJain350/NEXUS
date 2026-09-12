@@ -1,5 +1,18 @@
 import React from 'react';
-import { Clock, MapPin, Navigation, ArrowDown, Gauge, ShieldCheck, Crosshair } from 'lucide-react';
+import { Clock, Navigation, Gauge, ShieldCheck, Crosshair, MapPin } from 'lucide-react';
+
+// Haversine formula to calculate distance between two coordinates in kilometers
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function JourneyTimeline({
   journeyPoints = [],
@@ -8,8 +21,8 @@ export default function JourneyTimeline({
 }) {
   if (!selectedVehicle) {
     return (
-      <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)' }}>
-        <Navigation size={32} color="rgba(0, 242, 254, 0.3)" style={{ margin: '0 auto 10px auto' }} />
+      <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Navigation size={32} color="rgba(0, 242, 254, 0.3)" style={{ marginBottom: '10px' }} />
         <div style={{ fontWeight: 600, color: 'var(--text-muted)' }}>No Vehicle Selected</div>
         <p style={{ fontSize: '0.78rem', marginTop: '4px' }}>
           Select a vehicle from the registry or click an ANPR observation to trace its route across the camera network.
@@ -17,6 +30,32 @@ export default function JourneyTimeline({
       </div>
     );
   }
+
+  // Calculate speed accurately between consecutive points
+  const pointsWithCalculatedSpeed = journeyPoints.map((point, index) => {
+    let speed = 'N/A';
+    if (index > 0) {
+      const prev = journeyPoints[index - 1];
+      if (
+        point.latitude && point.longitude &&
+        prev.latitude && prev.longitude &&
+        point.timestamp && prev.timestamp
+      ) {
+        const timeDeltaHours = (new Date(point.timestamp).getTime() - new Date(prev.timestamp).getTime()) / (1000 * 60 * 60);
+        if (timeDeltaHours > 0.001) {
+          const distKm = calculateHaversineDistance(prev.latitude, prev.longitude, point.latitude, point.longitude);
+          const calculatedSpeed = distKm / timeDeltaHours;
+          if (calculatedSpeed >= 1 && calculatedSpeed <= 200) {
+            speed = `${calculatedSpeed.toFixed(0)} km/h`;
+          }
+        }
+      }
+    } else if (point.speed_est) {
+      // If mock provided speed_est on first point
+      speed = point.speed_est;
+    }
+    return { ...point, calculatedSpeed: speed };
+  });
 
   return (
     <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', height: '100%' }}>
@@ -45,14 +84,14 @@ export default function JourneyTimeline({
 
       {/* Timeline Steps */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingRight: '4px', minHeight: '0' }}>
-        {journeyPoints.length === 0 ? (
+        {pointsWithCalculatedSpeed.length === 0 ? (
           <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.8rem' }}>
             No trajectory observations recorded for this vehicle.
           </div>
         ) : (
-          journeyPoints.map((point, index) => {
+          pointsWithCalculatedSpeed.map((point, index) => {
             const isFirst = index === 0;
-            const isLast = index === journeyPoints.length - 1;
+            const isLast = index === pointsWithCalculatedSpeed.length - 1;
 
             return (
               <div key={point.observation_id || index} style={{ position: 'relative', display: 'flex', gap: '14px' }}>
@@ -121,25 +160,23 @@ export default function JourneyTimeline({
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Clock size={12} color="var(--accent-cyan)" />
-                      <span>{new Date(point.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
+                      <span>{point.timestamp ? new Date(point.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <ShieldCheck size={12} color="var(--accent-emerald)" />
-                      <span>Conf: {(point.confidence * 100).toFixed(1)}%</span>
+                      <span>Conf: {point.confidence ? `${(point.confidence * 100).toFixed(1)}%` : 'N/A'}</span>
                     </div>
-                    {point.speed_est && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Gauge size={12} color="var(--accent-amber)" />
-                        <span>{point.speed_est}</span>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Gauge size={12} color="var(--accent-amber)" />
+                      <span>Speed: <b style={{ color: point.calculatedSpeed === 'N/A' ? 'var(--text-dim)' : 'var(--accent-amber)' }}>{point.calculatedSpeed}</b></span>
+                    </div>
                   </div>
 
                   <div className="font-mono" style={{ fontSize: '0.66rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                    GPS: {point.latitude?.toFixed(4)}°, {point.longitude?.toFixed(4)}°
+                    GPS: {point.latitude ? `${point.latitude.toFixed(4)}°, ${point.longitude.toFixed(4)}°` : 'N/A'}
                   </div>
                 </div>
               </div>
