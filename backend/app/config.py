@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     max_overflow: int = 20
     pool_timeout: int = 30  # seconds waiting for a connection
 
+    # Interpreter that has the ROOT requirements.txt CV stack (torch,
+    # ultralytics, fast-plate-ocr, opencv) — used by the video-upload
+    # feature to run scripts/run_video_live_ingest.py. Never installed
+    # into this backend venv (Plan §0 pin conflicts).
+    cv_python: str = "python"
+
     @field_validator("database_url")
     @classmethod
     def _validate_database_url(cls, v: str) -> str:

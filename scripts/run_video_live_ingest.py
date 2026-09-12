@@ -318,5 +318,16 @@ def main():
         print(f"WARNING: {ingest_failures} failures occurred - check the warnings above / backend logs.")
     print("=" * 70 + "\n")
 
+    # Machine-readable summary for programmatic callers (e.g. the backend
+    # video-upload endpoint). Additive only — no behavior change.
+    print("NEXUS_SUMMARY_JSON: " + json.dumps({
+        "plates_read": total_plates,
+        "ingested": total_ingested,
+        "replays": total_plates - total_ingested,
+        "unreadable": unreadable_plates,
+        "failures": ingest_failures,
+        "backend_online": backend_online,
+    }))
+
 if __name__ == "__main__":
     main()

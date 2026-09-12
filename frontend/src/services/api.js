@@ -174,6 +174,39 @@ class NexusApiClient {
     return list;
   }
 
+  // --- Local Video Upload → ANPR pipeline ---
+  // The backend runs the existing R1+R2 CV pipeline (YOLO + ByteTrack +
+  // ONNX plate detection + Fast-Plate-OCR) on the uploaded file and
+  // ingests each detection with its real-world processing timestamp.
+  async uploadVideoForAnpr(file) {
+    if (this.forceSimulation) {
+      throw new Error('Video upload requires the live backend');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/videos/upload`, {
+      method: 'POST',
+      body: formData,
+      signal: AbortSignal.timeout(300000) // pipeline runs 30–90 s per clip
+    });
+    if (res.ok) return await res.json();
+    let detail = `Upload failed (${res.status})`;
+    try {
+      const err = await res.json();
+      // Backend error envelope: {"error": {"code", "message"}}
+      detail = err?.error?.message || err?.detail || detail;
+    } catch { /* non-JSON error body */ }
+    throw new Error(detail);
+  }
+
+  async getPlateReads(observationId) {
+    try {
+      const res = await fetch(`${BASE_URL}/observations/${observationId}/plate-reads`, { signal: AbortSignal.timeout(3500) });
+      if (res.ok) return await res.json();
+    } catch (e) { /* non-fatal enrichment */ }
+    return [];
+  }
+
   // --- Ingestion Simulation ---
   async ingestObservation(payload) {
     if (this.forceSimulation) {

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routers import cameras, health, observations, vehicles
+from app.api.routers import cameras, health, observations, vehicles, videos
 from app.config import get_settings
 
 app = FastAPI(
@@ -39,3 +39,4 @@ app.include_router(health.router)
 app.include_router(observations.router)
 app.include_router(cameras.router)
 app.include_router(vehicles.router)
+app.include_router(videos.router)

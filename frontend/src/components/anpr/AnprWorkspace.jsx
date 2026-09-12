@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScanLine, ShieldCheck, Search, Filter, CheckCircle2, AlertTriangle, X, ExternalLink, Crosshair, BarChart3, Info } from 'lucide-react';
+import { ScanLine, ShieldCheck, Search, Filter, CheckCircle2, AlertTriangle, X, ExternalLink, Crosshair, BarChart3, Info, Upload } from 'lucide-react';
+import VideoUploadModal from './VideoUploadModal';
 
 export default function AnprWorkspace({
   observations = [],
@@ -10,6 +11,7 @@ export default function AnprWorkspace({
   const [searchPlate, setSearchPlate] = useState('');
   const [selectedDetection, setSelectedDetection] = useState(null);
   const [filterConfidence, setFilterConfidence] = useState('all');
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   // Statistics calculation
   const totalReads = observations.length;
@@ -65,6 +67,9 @@ export default function AnprWorkspace({
               />
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             </div>
+            <button onClick={() => setIsUploadOpen(true)} className="btn btn-outline" title="Run the ANPR pipeline on a local video file">
+              <Upload size={13} /> Upload Video
+            </button>
           </div>
         </div>
 
@@ -397,6 +402,9 @@ export default function AnprWorkspace({
           </div>
         </div>
       )}
+
+      {/* Local Video Upload → ANPR pipeline */}
+      <VideoUploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
     </div>
   );
 }
