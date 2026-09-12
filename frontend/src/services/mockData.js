@@ -103,7 +103,7 @@ export const MOCK_CAMERAS = [
 export const MOCK_VEHICLES = [
   {
     id: 1,
-    global_vehicle_id: "GV-9021",
+    global_vehicle_id: "NEXUS_V00001",
     plate_number_best_guess: "MH12AB1234",
     vehicle_type: "car",
     observation_count: 5,
@@ -112,7 +112,7 @@ export const MOCK_VEHICLES = [
   },
   {
     id: 2,
-    global_vehicle_id: "GV-4482",
+    global_vehicle_id: "NEXUS_V00002",
     plate_number_best_guess: "MH02CD5678",
     vehicle_type: "car",
     observation_count: 4,
@@ -121,7 +121,7 @@ export const MOCK_VEHICLES = [
   },
   {
     id: 3,
-    global_vehicle_id: "GV-1109",
+    global_vehicle_id: "NEXUS_V00003",
     plate_number_best_guess: "MH14EF9900",
     vehicle_type: "truck",
     observation_count: 3,
@@ -130,7 +130,7 @@ export const MOCK_VEHICLES = [
   },
   {
     id: 4,
-    global_vehicle_id: "GV-8723",
+    global_vehicle_id: "NEXUS_V00004",
     plate_number_best_guess: "DL01XY9999",
     vehicle_type: "bus",
     observation_count: 2,

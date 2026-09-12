@@ -11,9 +11,11 @@ Runs:
 
 import argparse
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 import cv2
 import numpy as np
 
@@ -39,6 +41,8 @@ def generate_demo_video(output_video_path: Path, num_frames: int = 60, fps: int 
     img_dir = PROJECT_ROOT / "data" / "indian_road_yolo" / "images" / "val"
     if not img_dir.exists():
         img_dir = PROJECT_ROOT / "data" / "indian_road_subset" / "images"
+    if not img_dir.exists():
+        img_dir = PROJECT_ROOT / "runs" / "detect" / "NEXUS_Local" / "RTX4060_Uniform_v1"
 
     images = sorted(list(img_dir.glob("*.jpg")))
     if not images:
@@ -156,8 +160,13 @@ def run_r1_tracking(
 
     # 1. Verify model exists
     if not model_file.exists():
-        print(f"Error: Model weights not found at: {model_file}", file=sys.stderr)
-        sys.exit(1)
+        fallback_model = project_root / "models" / "yolo11n.pt"
+        if fallback_model.exists():
+            print(f"[NEXUS] Notice: Model {model_file} not found, falling back to: {fallback_model}\n")
+            model_file = fallback_model
+        else:
+            print(f"Error: Model weights not found at: {model_file}", file=sys.stderr)
+            sys.exit(1)
 
     # 14. Check if test video exists, otherwise provide clear instructions
     if not video_file.exists():

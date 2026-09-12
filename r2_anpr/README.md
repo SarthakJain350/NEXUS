@@ -1,4 +1,13 @@
-# NEXUS R2 — ANPR / OCR Module
+# NEXUS R2 — ANPR / OCR Module (LEGACY / REFERENCE)
+
+> **STATUS (decision D2, 2026-09-12):** This package is the **reference
+> implementation** from R2's owner (khushi, PR #5). It is **not the production
+> R2 pipeline** and is not used by the live NEXUS system. The official R2 is
+> the integrated pipeline in the root `app.py` +
+> `scripts/run_video_live_ingest.py`: **YOLO plate detector → preprocessing →
+> Fast-Plate-OCR** (see root `README.md`). This package is retained for
+> documentation of the module's development history. It has known bugs (below)
+> and is not import-safe.
 
 R2's plate-reading stage: takes a plate crop image and produces the plate
 text, a confidence score and a readability status. Owned by R2 (khushi),
@@ -41,16 +50,22 @@ Combine with R1's tracking output via `from_r1_r2(r1_dict, r2_dict)`
 (association key: **camera_id + track_id**). Full mapping table:
 `docs/integration.md`.
 
-## Known issues (flagged 2026-09-12, R2's owner to fix)
+## Known issues (reference implementation — will not be fixed; see D2)
 
 - `anpr_pipeline.py` imports `clean_plate` from `plate_cleaner`, but the
   module defines `clean_plate_text` — `process_plate` crashes on import.
+- `preprocess.py` returns a **grayscale** image; `ocr_engine.py` then calls
+  `cv2.cvtColor(..., COLOR_BGR2GRAY)` on the single-channel result — a second
+  crash even after fixing the import.
 - `ocr_engine.extract_plate_text` returns a `confidence` key only on the
   invalid-image path; the success path omits it.
 - The OCR engine strips to alphanumerics internally, so no raw OCR trail
   survives this module — R3 preserves whatever `plate_text` arrives as the
   raw trail in `plate_reads.plate_number_raw`.
+- Imports are directory-relative (`from preprocess import ...`), so the
+  package is not importable as `r2_anpr.anpr_pipeline` from the repo root.
 
 The interactive demo of the full two-stage engine (YOLO vehicle detect →
 YOLO plate detect → Fast-Plate-OCR / GPT-4o-mini fallback) lives in the root
-`app.py` (Streamlit, deployed on Hugging Face Spaces).
+`app.py` (Streamlit, deployed on Hugging Face Spaces). **That engine — not
+this package — is the official R2 implementation.**

@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Observation, PlateRead
 from app.schemas.observation import ObservationCreate
@@ -110,9 +110,12 @@ def list_observations(
     total = db.scalar(
         select(func.count()).select_from(query.subquery())
     )
+    # selectinload: ObservationRead reads the vehicle's global_vehicle_id for
+    # every row — eager-load in one query instead of one lazy load per row.
     items = list(
         db.scalars(
-            query.order_by(Observation.timestamp.desc(), Observation.id.desc())
+            query.options(selectinload(Observation.vehicle))
+            .order_by(Observation.timestamp.desc(), Observation.id.desc())
             .limit(limit)
             .offset(offset)
         )
@@ -152,7 +155,8 @@ def for_camera(
     )
     items = list(
         db.scalars(
-            query.order_by(Observation.timestamp.desc(), Observation.id.desc())
+            query.options(selectinload(Observation.vehicle))
+            .order_by(Observation.timestamp.desc(), Observation.id.desc())
             .limit(limit)
             .offset(offset)
         )

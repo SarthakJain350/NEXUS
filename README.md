@@ -126,12 +126,12 @@ see [R1/R2 → R3 Data Contract](#-r1r2--r3-data-contract) and
 
 | Module | Owner | Code | Status |
 |---|---|---|---|
-| **R1** — vehicle detection + per-camera tracking | R1 (HARSHIT) | root pipeline (`app.py` detection stage) | ⚠️ detection works; ByteTrack tracking output not delivered yet |
-| **R2** — ANPR + OCR | R2 (khushi) | `r2_anpr/` + engine core in `app.py` | ✅ plate detection + OCR (known bug: `anpr_pipeline.py` broken import) |
+| **R1** — vehicle detection + per-camera tracking | R1 (HARSHIT) | `src/tracking/r1_tracker.py` + engine in `app.py` | ✅ ByteTrack tracker delivered (lifecycle, trajectories, crops); COCO YOLOv11n detector for the MVP per decision D1 |
+| **R2** — ANPR + OCR | R2 (khushi) | engine core in `app.py` + `scripts/run_video_live_ingest.py` | ✅ plate detection + Fast-Plate-OCR = **official R2** (decision D2); `r2_anpr/` is the legacy/reference implementation |
 | **R3** — backend + PostgreSQL | R3 (Sarthak) | `backend/` | ✅ shipped: ingest, idempotency, journeys, plate_reads trail, R1/R2 contract integration |
-| **R4** — frontend + GIS dashboard | R4 (Rushil) | `frontend/` (React + Vite + Leaflet) | ✅ dashboard live against the backend API |
-| **R5** — Re-ID + analytics + alerts | R5 (Harshit) | `reid/`, `analytics/` | ✅ analytics, alerts, offline demo |
-| **R6** — cross-camera fusion | R6 | — (API contract only) | ⛔ intentionally out of scope; provisional integration point in R3 |
+| **R4** — frontend + GIS dashboard | R4 (Rushil) | `frontend/` (React + Vite + Leaflet) | ✅ dashboard live against the backend API — **primary SIH demo UI** (D10) |
+| **R5** — Re-ID + analytics + alerts | R5 (Harshit) | `reid/`, `analytics/` | ✅ analytics, alerts, offline demo (MVP dashboard computes its own client-side analytics, D4) |
+| **R6** — cross-camera fusion | R6 | — (API contract only) | ⛔ out of MVP scope; provisional integration point in R3 (`PATCH /observations/{id}/vehicle`) |
 
 ---
 
@@ -169,9 +169,10 @@ Input Image / Video Frame
   ROIs improve plate accuracy, and ~60–80% less effective detection area.
 - **Fallback:** if no vehicle is detected, the plate detector runs on the
   full frame (and at 90° rotation for submissions).
-- `r2_anpr/` wraps the OCR stage (preprocess → pytesseract OCR → plate
-  cleaning → heuristic confidence + readability status); its output feeds the
-  R3 adapter (`backend/app/integration/r1r2.py`).
+- **This engine is the official R2** (decision D2). `r2_anpr/` is the
+  teammate's legacy/reference OCR implementation (pytesseract-based) and is
+  not used at runtime; the R3 adapter (`backend/app/integration/r1r2.py`)
+  can still map its output shape if ever needed.
 
 The interactive **Streamlit demo** (`app.py`) runs this engine on uploaded
 images/videos with live metrics — deployed on
@@ -231,7 +232,8 @@ NEXUS/
 ├── create_submission.py        # 📦 Competition submission generator
 ├── visualize_predictions.py    # 📊 Prediction visualizer
 │
-├── r2_anpr/                    # 🔤 R2 — ANPR/OCR module (preprocess, OCR, plate cleaning, confidence)
+├── r2_anpr/                    # 🔤 R2 legacy/reference impl (official R2 = app.py engine, D2)
+├── src/tracking/               # 🎯 R1 — ByteTrack vehicle tracker (TrackedVehicle, lifecycle)
 ├── reid/                       # 🔁 R5 — vehicle Re-ID (feature extraction, similarity)
 ├── analytics/                  # 📈 R5 — traffic analyzer, anomaly detector, alerts
 │
@@ -241,16 +243,18 @@ NEXUS/
 │   │   ├── api/  schemas/  services/  repositories/  models/  database/
 │   ├── alembic/                #   migrations (0001_initial, 0002_r1r2_contract_fields)
 │   ├── tests/                  #   160+ tests incl. load/stress + R1/R2 integration
+│   ├── seed_data.py            #   demo seeder (cameras + cross-camera journeys + global IDs)
 │   └── fixtures/               #   edge-case fixtures
 │
-├── frontend/                   # 🗺️ R4 — React + Vite + Leaflet GIS command center
+├── frontend/                   # 🗺️ R4 — React + Vite + Leaflet GIS command center (primary demo UI)
 │   └── src/ (components, services/api.js)
 │
+├── scripts/run_video_live_ingest.py  # 🔗 R1→R2→R3 live video ingestion demo
 ├── models/                     # 🧠 Weights (Git LFS): best.pt/.onnx (plate), yolo11n.pt (vehicle)
-├── configs/  notebooks/  scripts/  runs/
-├── src/                        # 🧩 Training-time modules (object detection, LPR, segmentation)
-├── tests/                      # CV-side tests
-├── docs/                       # api_contract.md, database_schema.md, integration.md, R5 docs
+├── configs/  notebooks/  runs/
+├── src/                        # 🧩 Legacy training-time modules (object detection, LPR, segmentation)
+├── tests/                      # CV-side tests (R1 tracking, R5)
+├── docs/                       # api_contract.md, database_schema.md, integration.md, demo_runbook.md
 ├── requirements.txt            # CV/Streamlit deps (backend has its own)
 └── LICENSE                     # MIT
 ```
@@ -368,15 +372,20 @@ coordinate fallback, backward compatibility). Recorded numbers:
 
 1. **Start the stack:** Postgres (`docker compose up -d` in `backend/`) →
    `alembic upgrade head` → `uvicorn app.main:app --reload` →
-   `npm run dev` in `frontend/`.
-2. **Register cameras:** `PATCH /api/v1/cameras/CAM_01` with name/GPS/status.
-3. **Ingest observations:** run the detection/OCR engine (or the dashboard's
-   ingest simulator) and POST the combined NEXUS payload via the adapter —
-   or use `backend/fixtures/dummy_observations.json`.
+   `npm run dev` in `frontend/` (the React dashboard is the primary demo UI, D10).
+   Full runbook: [`docs/demo_runbook.md`](docs/demo_runbook.md).
+2. **Seed the corridor (cross-camera story):** `cd backend && python seed_data.py`
+   — 8 Mumbai–Pune cameras + 5 journeys incl. cross-camera same-plate vehicles
+   with global IDs (`NEXUS_V00001`…).
+3. **Live ingest (R1→R2→R3):** `python scripts/run_video_live_ingest.py --video
+   data/test_video.mp4 --camera CAM_01` — ByteTrack + plate detection +
+   Fast-Plate-OCR → POSTs full-contract observations. Alternatively use the
+   dashboard's ingest simulator or `backend/fixtures/dummy_observations.json`.
 4. **Watch the dashboard:** cameras appear with live status; search vehicles
    by plate; open a vehicle's journey on the GIS map.
-5. **Analytics/alerts (R5):** `python scripts/run_r5_demo.py` for the
-   offline Re-ID/analytics/alerts demo on synthetic crops.
+5. **Analytics/alerts (R5):** dashboard analytics/alerts are client-computed
+   from live API data (D4); `python scripts/run_r5_demo.py` runs the offline
+   Re-ID/analytics/alerts demo on synthetic crops.
 
 ---
 
@@ -401,19 +410,33 @@ is claimed.
 
 Honest state as of 2026-09-12 (SIH MVP/prototype):
 
-- **R1 tracking is not delivered yet** — no ByteTrack/track_id producer is in
-  the repo; the backend speaks the frozen contract and provides the adapter
-  so R1 can drop in. The detection/OCR engine itself works (Streamlit demo,
-  99.49% mAP@50 plate detector).
+- **R1 tracking is delivered** — `src/tracking/r1_tracker.py` implements
+  ByteTrack two-stage association with persistent track IDs, active/lost/removed
+  lifecycle, occlusion recovery, trajectory history and vehicle crops (unit
+  tests: `tests/test_r1_tracking.py`). The full chain runs end-to-end via
+  `scripts/run_video_live_ingest.py` (R1 track → plate detect → OCR →
+  `POST /api/v1/observations`). The vehicle detector is COCO-pretrained
+  YOLOv11n (decision D1 — no custom Indian-road vehicle model was trained;
+  fine-tuning on the Indian Road subset is future work, notably for
+  autorickshaw).
+- **R2 is the integrated Fast-Plate-OCR pipeline** (`app.py` +
+  `run_video_live_ingest.py`) — decision D2. The `r2_anpr/` package is the
+  teammate's legacy/reference implementation (known import + grayscale bugs,
+  documented in its README) and is not used at runtime.
 - **R6 cross-camera fusion is not implemented** — only the provisional API
-  integration point exists (by design, out of scope).
-- Known R2 bug: `r2_anpr/anpr_pipeline.py` imports `clean_plate` but the
-  module defines `clean_plate_text` (flagged to R2's owner).
+  integration point exists (by design, out of scope). The MVP demo uses
+  plate-based association (R3 links observations by plate) plus seeded global
+  vehicle IDs (`NEXUS_V#####`, canonical format D6) — this is **not** claimed
+  to be a visual Re-ID algorithm. `reid/` contains the reference
+  appearance-matching baseline; CityFlowV2 is the designated validation
+  dataset for future R6 work (D8).
+- Analytics/alerts on the dashboard are computed client-side from live API
+  data (`frontend/src/services/analyticsBridge.js`); the Python `analytics/`
+  modules are the algorithm/reference layer (D4).
 - Analytics run on development-scale data; no production-scale or
   multi-city claims.
-- OCR quality depends on plate visibility; the heuristic R2 confidence score
-  is rescaled to [0,1] by the adapter and kept separate from OCR/detection
-  confidences in the `plate_reads` trail.
+- OCR quality depends on plate visibility; per-source confidences (OCR,
+  plate detection) are kept separate in the `plate_reads` trail.
 
 ---
 
@@ -423,11 +446,12 @@ Honest state as of 2026-09-12 (SIH MVP/prototype):
 |---------|--------|---------|
 | Two-stage detection + dual OCR | ✅ Done | ONNX selectable, GPT-4o fallback |
 | Video inference + night vision | ✅ Done | Configurable sample rate, CLAHE |
+| R1 ByteTrack tracking | ✅ Done | `src/tracking/r1_tracker.py` + unit tests |
+| R1→R2→R3 live video ingest | ✅ Done | `scripts/run_video_live_ingest.py` (full contract payload) |
 | PostgreSQL backend + observations API | ✅ Done | FastAPI, idempotent ingest, journeys, migrations |
-| GIS dashboard | ✅ Done | React + Leaflet against the live API |
-| Re-ID, analytics, alerts | ✅ Done | `reid/`, `analytics/`, offline demo |
-| R1 ByteTrack tracking output → backend | 🔲 In progress | Contract + adapter ready; R1 delivery pending |
-| Cross-camera fusion (R6) | 🔲 Out of scope | API contract preserved |
+| GIS dashboard | ✅ Done | React + Leaflet against the live API — primary demo UI |
+| Re-ID, analytics, alerts | ✅ Done | `reid/`, `analytics/`, offline demo; client-side dashboard analytics |
+| Cross-camera fusion (R6) | 🔲 Out of scope | API contract preserved; plate association + seeded IDs for MVP |
 | Live webcam stream | 🔲 Planned | `cv2.VideoCapture(0)` |
 | TensorRT FP16 / OpenVINO INT8 | 🔲 Planned | Edge acceleration |
 

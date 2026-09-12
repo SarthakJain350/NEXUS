@@ -350,30 +350,38 @@ def test_patch_observation_vehicle_links_and_creates(client, three_obs):
     obs_id = client.get("/api/v1/observations").json()["items"][0]["id"]
     response = client.patch(
         f"/api/v1/observations/{obs_id}/vehicle",
-        json={"global_vehicle_id": "GV-77"},
+        json={"global_vehicle_id": "NEXUS_V00077"},
     )
     assert response.status_code == 200
     assert response.json()["vehicle_id"] is not None
 
     vehicle = client.get(f"/api/v1/vehicles/{response.json()['vehicle_id']}").json()
-    assert vehicle["global_vehicle_id"] == "GV-77"
+    assert vehicle["global_vehicle_id"] == "NEXUS_V00077"
     assert vehicle["plate_number_best_guess"] == "MH12AB1234"  # seeded from obs
+
+    # ObservationRead exposes the fused vehicle's global identity (R5/R6
+    # follow-up): the PATCHed observation carries it, unfused ones don't.
+    patched = client.get(f"/api/v1/observations/{obs_id}").json()
+    assert patched["global_vehicle_id"] == "NEXUS_V00077"
+    other = client.get("/api/v1/observations").json()["items"]
+    unfused = [o for o in other if o["id"] != obs_id]
+    assert unfused and all(o["global_vehicle_id"] is None for o in unfused)
 
 
 def test_patch_observation_vehicle_links_existing_global(client, three_obs):
     ids = [o["id"] for o in client.get("/api/v1/observations").json()["items"]]
     first = client.patch(
-        f"/api/v1/observations/{ids[0]}/vehicle", json={"global_vehicle_id": "GV-9"}
+        f"/api/v1/observations/{ids[0]}/vehicle", json={"global_vehicle_id": "NEXUS_V00009"}
     )
     second = client.patch(
-        f"/api/v1/observations/{ids[1]}/vehicle", json={"global_vehicle_id": "GV-9"}
+        f"/api/v1/observations/{ids[1]}/vehicle", json={"global_vehicle_id": "NEXUS_V00009"}
     )
     assert first.json()["vehicle_id"] == second.json()["vehicle_id"]
 
 
 def test_patch_observation_vehicle_unknown_obs_404(client):
     response = client.patch(
-        "/api/v1/observations/999999/vehicle", json={"global_vehicle_id": "GV-1"}
+        "/api/v1/observations/999999/vehicle", json={"global_vehicle_id": "NEXUS_V00001"}
     )
     assert response.status_code == 404
     assert_error_shape(response.json(), "not_found")

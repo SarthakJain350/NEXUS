@@ -80,9 +80,9 @@ export class NexusAiService {
     // 5. Multi-camera Cross-Journey / Specific Vehicle
     if (lower.includes('nexus_v00042') || lower.includes('journey') || lower.includes('cross') || lower.includes('vehicle')) {
       const multiCamVehicles = vehicles.filter(v => (v.observation_count || 0) > 1);
-      const sample = vehicles[0] || { plate_number_best_guess: 'MH12AB1234', global_vehicle_id: 'GV-9021' };
+      const sample = vehicles[0] || { plate_number_best_guess: 'MH12AB1234', global_vehicle_id: 'NEXUS_V00001' };
       return {
-        reply: `Cross-camera multi-station tracking is actively compiled from database journey records. Target vehicle **${sample.plate_number_best_guess || 'MH12AB1234'}** (Global ID: ${sample.global_vehicle_id || 'GV-9021'}) has traversed **5 consecutive camera sectors** along the corridor: CAM_01 ➔ CAM_02 ➔ CAM_04 ➔ CAM_05 ➔ CAM_06 with average transit velocity of 68 km/h.`,
+        reply: `Cross-camera multi-station tracking is actively compiled from database journey records. Target vehicle **${sample.plate_number_best_guess || 'MH12AB1234'}** (Global ID: ${sample.global_vehicle_id || 'NEXUS_V00001'}) has traversed **5 consecutive camera sectors** along the corridor: CAM_01 ➔ CAM_02 ➔ CAM_04 ➔ CAM_05 ➔ CAM_06 with average transit velocity of 68 km/h.`,
         action: { tab: 'tracking', label: 'Inspect Trajectory Route' }
       };
     }

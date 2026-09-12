@@ -1,3 +1,12 @@
+"""LEGACY script (pre-NEXUS-integration, hardcoded local paths).
+
+Kept as a training-time reference (decision D9). Skipped by pytest so root
+collection works — the active model smoke test is scripts/test_pipeline.py.
+"""
+import pytest
+
+pytest.skip("legacy script with hardcoded local paths — not a runnable test", allow_module_level=True)
+
 import os
 import cv2
 import torch
