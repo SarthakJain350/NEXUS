@@ -1,0 +1,93 @@
+# NEXUS CI — backend (R3) + frontend (R4).
+#
+# Scope notes:
+# - Backend job needs a PostgreSQL 16 service (same major version as
+#   backend/docker-compose.yml). conftest.py creates/drops the nexus_test
+#   database itself via the maintenance connection, so POSTGRES_DB just
+#   seeds the base database the URL points at.
+# - Root pytest (tests/test_r1_tracking.py, tests/test_r5.py) is NOT run
+#   here: it needs the root CV stack (torch, ultralytics, opencv —
+#   requirements.txt pins are GPU-oriented and ~2 GB to install). Those
+#   tests run locally per TODO §10 commands; see docs/environments.md.
+# - Python 3.11 / Node 20 match the versions documented in
+#   docs/environments.md.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests (R3)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run test suite
+        env:
+          DATABASE_URL: postgresql+psycopg://nexus:nexus@localhost:5432/nexus
+        run: pytest -q
+
+  frontend:
+    name: Frontend lint, tests, build (R4)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
