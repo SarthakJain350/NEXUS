@@ -14,12 +14,15 @@ export default function ReidWorkspace({
   // Gallery candidates derived from observations
   const candidateObservations = observations.filter(o => o.plate_number).slice(0, 8);
 
-  // Mock similarity scores representing cosine similarity comparison from VehicleReIdentifier
+  // SIMULATED Re-ID matches (hardcoded similarity scores): the Python
+  // VehicleReIdentifier (reid/vehicle_reid.py) is the reference algorithm —
+  // these UI numbers illustrate the matching concept until R6 fusion feeds
+  // real cross-camera scores. Do not present as live model output.
   const reidMatches = selectedProbe
     ? [
         {
           id: 'REID-M1',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'GV-9021',
+          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
           plate_number: selectedProbe.plate_number_best_guess,
           vehicle_type: selectedProbe.vehicle_type,
           similarity: 0.984,
@@ -30,7 +33,7 @@ export default function ReidWorkspace({
         },
         {
           id: 'REID-M2',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'GV-9021',
+          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
           plate_number: selectedProbe.plate_number_best_guess,
           vehicle_type: selectedProbe.vehicle_type,
           similarity: 0.932,
@@ -41,7 +44,7 @@ export default function ReidWorkspace({
         },
         {
           id: 'REID-M3',
-          global_vehicle_id: selectedProbe.global_vehicle_id || 'GV-9021',
+          global_vehicle_id: selectedProbe.global_vehicle_id || 'NEXUS_V00001',
           plate_number: selectedProbe.plate_number_best_guess,
           vehicle_type: selectedProbe.vehicle_type,
           similarity: 0.887,
@@ -52,7 +55,7 @@ export default function ReidWorkspace({
         },
         {
           id: 'REID-M4',
-          global_vehicle_id: 'GV-3184',
+          global_vehicle_id: 'NEXUS_V00005',
           plate_number: 'MH04XX1199',
           vehicle_type: selectedProbe.vehicle_type,
           similarity: 0.742,
@@ -143,7 +146,7 @@ export default function ReidWorkspace({
                       <span>{veh.plate_number_best_guess}</span>
                     </div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                      ID: <b style={{ color: 'var(--accent-purple)' }}>{veh.global_vehicle_id || 'GV-9021'}</b>
+                      ID: <b style={{ color: 'var(--accent-purple)' }}>{veh.global_vehicle_id || 'NEXUS_V00001'}</b>
                       {' • '}
                       <span style={{ textTransform: 'uppercase' }}>{veh.vehicle_type}</span>
                     </div>

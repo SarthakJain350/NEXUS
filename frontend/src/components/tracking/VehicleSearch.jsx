@@ -53,7 +53,7 @@ export default function VehicleSearch({
         <input
           type="text"
           className="input-control font-mono"
-          placeholder="e.g. MH12AB1234 or GV-9021..."
+          placeholder="e.g. MH12AB1234 or NEXUS_V00001..."
           value={query}
           onChange={handleInput}
           style={{ paddingLeft: '36px', fontSize: '0.9rem', letterSpacing: '1px' }}
