@@ -4,15 +4,18 @@ Why this module exists
 ----------------------
 Inspection of the *actual* ML code in this repository found:
 
-- **R1 (vehicle detection + per-camera tracking) has not been delivered
-  yet** — no ByteTrack/track_id producer exists anywhere. Until it lands,
-  this adapter speaks the frozen contract so R1 can drop in without R3
-  changes.
-- **R2 (`r2_anpr.process_plate`)** emits
+- **R1 (vehicle detection + per-camera tracking)** is delivered as
+  ``src/tracking/r1_tracker.py`` (ByteTrack, persistent track IDs, lifecycle,
+  trajectories, crops). Its live producer, ``scripts/run_video_live_ingest.py``,
+  already POSTs backend-native field names directly; this adapter remains the
+  documented path for producers speaking the frozen ML-contract names.
+- **R2** is officially the integrated Fast-Plate-OCR pipeline in the root
+  ``app.py`` (decision D2). The legacy ``r2_anpr.process_plate`` emits
   ``{"plate_text": str, "confidence": 0-100 heuristic, "status":
   "readable"|"low_confidence"|"unreadable"}`` — a *percentage-scale
-  heuristic*, not an OCR probability, with no bbox/track/camera linkage.
-- The root `app.py` pipeline OCR fallback returns the literal sentinel
+  heuristic*, not an OCR probability, with no bbox/track/camera linkage
+  (that shape is still accepted here for reference/testing).
+- The root ``app.py`` pipeline OCR fallback returns the literal sentinel
   ``"UNREADABLE"`` and error strings starting with ``"ERR:"``.
 
 Every quirk is normalized here — never in routes, services or the schema

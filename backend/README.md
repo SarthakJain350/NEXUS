@@ -30,8 +30,21 @@ integration). Consumer docs: `docs/api_contract.md`,
 - Every plate-bearing ingest writes a **`plate_reads` trail row** (raw OCR
   text, separate OCR/detection confidences, plate bbox, engine tag), served
   by `GET /observations/{id}/plate-reads`.
+- **`ObservationRead` carries `global_vehicle_id`** (added 2026-09-12, R6
+  identity of the linked vehicle via the `vehicles` table — `null` until
+  fusion assigns one; ingest never fabricates IDs). Canonical format:
+  `NEXUS_V#####` (decision D6).
 
 Full mapping table and the R1/R2 reality check: `docs/integration.md`.
+
+## Demo seed (2026-09-12)
+
+`python seed_data.py` (run from `backend/` with the venv active) populates
+8 Mumbai–Pune corridor cameras and 5 journeys — including cross-camera
+same-plate vehicles with fused global IDs — so the R4 dashboard has the full
+cross-camera story without running video inference. Idempotent: stable
+`ingest_id`s make replays return 200s. Demo walkthrough:
+`docs/demo_runbook.md` (repo root).
 
 ## Quick start
 
@@ -109,6 +122,7 @@ backend/
 │   ├── services/      # business logic: ingest, batch, queries, camera update
 │   └── repositories/  # data access (+ plate-read trail writes)
 ├── alembic/           # migrations (0001_initial, 0002_r1r2_contract_fields)
+├── seed_data.py       # demo seeder (cameras + cross-camera journeys + global IDs)
 ├── tests/             # schema / DB / service / API / fixture / load / R1R2 integration
 └── fixtures/          # dummy_observations.json (Plan §12 edge cases)
 ```

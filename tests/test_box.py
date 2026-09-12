@@ -1,3 +1,12 @@
+"""LEGACY visual-audit script (pre-NEXUS-integration, hardcoded local paths).
+
+Kept as a training-time reference (decision D9). Skipped by pytest so root
+collection works — contains no test functions.
+"""
+import pytest
+
+pytest.skip("legacy visual-audit script with hardcoded local paths — not a runnable test", allow_module_level=True)
+
 import cv2
 import os
 import random

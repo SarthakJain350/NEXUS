@@ -161,4 +161,8 @@ KnightSight_Uniform_Dataset/
 test_img/
 visualized_predictions/
 
+# Generated tracking/demo video outputs (regenerable via scripts/run_r1_tracking.py
+# and scripts/run_video_live_ingest.py)
+runs/tracking/
+
 *.zip
