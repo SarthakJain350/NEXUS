@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Camera, Navigation, AlertTriangle, Eye, Layers, ShieldCheck, Car } from 'lucide-react';
+import { getTileConfig } from '../../services/mapConfig';
 
 // Re-measure the map whenever its container is laid out or resized.
 // Leaflet only listens for WINDOW resizes; on tab switch the map mounts
@@ -129,10 +130,17 @@ export default function TacticalMap({
     [journeyPoints]
   );
   // Stable fallback focus target when no explicit focusCoords is set.
+  // Journey points are chronological ASC, so the vehicle's most recent
+  // position is the LAST valid polyline vertex — never the first, which
+  // is the oldest waypoint and would center the map on the journey start.
   const fallbackTarget = useMemo(
-    () => (polylinePositions.length > 0 ? polylinePositions[0] : null),
+    () => (polylinePositions.length > 0 ? polylinePositions[polylinePositions.length - 1] : null),
     [polylinePositions]
   );
+
+  // Base-tile provider config (env-driven; resolved once — env is immutable
+  // after build). No journey/trajectory logic depends on this.
+  const tileConfig = useMemo(() => getTileConfig(), []);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
@@ -310,11 +318,13 @@ export default function TacticalMap({
         {/* Re-sync Leaflet's cached size with the real container size */}
         <ContainerSizeObserver />
 
-        {/* CartoDB Dark Matter Tiles */}
+        {/* Base tiles — provider/key configured via VITE_MAP_* env vars
+            (frontend/.env); defaults to keyless CARTO Dark Matter.
+            See frontend/.env.example for the variable names. */}
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          maxZoom={19}
+          attribution={tileConfig.attribution}
+          url={tileConfig.url}
+          maxZoom={tileConfig.maxZoom}
         />
 
         {/* Camera Coverage Radiuses & Markers */}

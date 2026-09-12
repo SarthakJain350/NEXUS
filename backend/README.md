@@ -5,10 +5,11 @@ Receives vehicle observations from the R1/R2 pipelines, persists them,
 and serves vehicles/cameras/journeys to the R4 dashboard, R5 analytics,
 and R6 fusion.
 
-**Status: Phases 0–9 complete + R1/R2 contract integration (2026-09-12).**
-135+ tests green (schema, DB, services, API, fixtures, load, R1/R2
-integration). Consumer docs: `docs/api_contract.md`,
-`docs/database_schema.md`, `docs/integration.md` (repo root).
+**Status: Phases 0–9 complete + R1/R2 contract integration + video upload
+(2026-09-12).** 160+ tests green (schema, DB, services, API, fixtures,
+load, R1/R2 integration, video upload, live-ingest contract). Consumer
+docs: `docs/api_contract.md`, `docs/database_schema.md`,
+`docs/integration.md` (repo root).
 
 ## R1/R2 integration (2026-09-12)
 
@@ -36,6 +37,16 @@ integration). Consumer docs: `docs/api_contract.md`,
   `NEXUS_V#####` (decision D6).
 
 Full mapping table and the R1/R2 reality check: `docs/integration.md`.
+
+## Local video upload → ANPR (2026-09-12)
+
+`POST /api/v1/videos/upload` (multipart, `python-multipart`) runs the
+existing CV pipeline (`scripts/run_video_live_ingest.py`) via the
+interpreter configured as `CV_PYTHON` (default `python`; the CV stack stays
+in the root env, Plan §0) on a reserved `LOCAL_UPLOAD` source node with
+real-world processing timestamps. Idempotent: re-uploads replay the same
+`ingest_id`s. CPU caps clips at ~1 min / 200 frames; see
+`docs/api_contract.md` §Videos. Tests: `tests/test_video_upload.py`.
 
 ## Demo seed (2026-09-12)
 

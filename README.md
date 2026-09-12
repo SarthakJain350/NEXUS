@@ -254,7 +254,9 @@ NEXUS/
 ├── configs/  notebooks/  runs/
 ├── src/                        # 🧩 Legacy training-time modules (object detection, LPR, segmentation)
 ├── tests/                      # CV-side tests (R1 tracking, R5)
-├── docs/                       # api_contract.md, database_schema.md, integration.md, demo_runbook.md
+├── docs/                       # api_contract.md, database_schema.md, integration.md,
+│                               # demo_runbook.md, demo_walkthrough_script.md, viva_prep.md,
+│                               # architecture.md, environments.md, R5_REID_ANALYTICS.md
 ├── requirements.txt            # CV/Streamlit deps (backend has its own)
 └── LICENSE                     # MIT
 ```

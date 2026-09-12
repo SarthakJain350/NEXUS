@@ -439,9 +439,9 @@ ONNX → CoreML           → Apple Neural Engine (iPhone/iPad)
 |---|---|---|
 | Multi-plate per vehicle | ✅ Supported | — |
 | Live webcam stream | ❌ | `cv2.VideoCapture(0)` |
-| Plate tracking across frames | ❌ | ByteTrack / BotSort |
-| Database logging | ❌ | SQLite with timestamps |
-| Alert on known plates | ❌ | Blocklist/whitelist lookup |
+| Plate tracking across frames | ✅ Done | ByteTrack (`src/tracking/r1_tracker.py`) |
+| Database logging | ✅ Done | PostgreSQL 16 backend (`backend/`) — observations, vehicles, journeys |
+| Alert on known plates | ❌ | Blocklist/whitelist lookup (future work) |
 
 ---
 
